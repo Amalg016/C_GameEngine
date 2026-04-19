@@ -1,0 +1,25 @@
+# Build artifacts
+build/
+*.o
+*.d
+
+# Compiled shaders
+*.spv
+
+# Binaries
+engine_vulkan
+engine_opengl
+engine_web.html
+engine_web.js
+engine_web.wasm
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

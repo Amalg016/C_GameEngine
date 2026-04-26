@@ -11,6 +11,20 @@
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
+// ---------------------------------------------------------------------------
+// Vertex format — position + UV + color
+// ---------------------------------------------------------------------------
+
+typedef struct Vertex {
+    float pos[2];    // x, y
+    float uv[2];     // u, v
+    float color[3];  // r, g, b
+} Vertex;
+
+// ---------------------------------------------------------------------------
+// Swapchain
+// ---------------------------------------------------------------------------
+
 typedef struct VulkanSwapchain {
     VkSwapchainKHR   handle;
     VkFormat         image_format;
@@ -22,6 +36,10 @@ typedef struct VulkanSwapchain {
 
     VkFramebuffer   *framebuffers;
 } VulkanSwapchain;
+
+// ---------------------------------------------------------------------------
+// Main Vulkan context
+// ---------------------------------------------------------------------------
 
 typedef struct VulkanContext {
     // --- instance / surface ---
@@ -44,6 +62,24 @@ typedef struct VulkanContext {
     VkRenderPass             render_pass;
     VkPipelineLayout         pipeline_layout;
     VkPipeline               graphics_pipeline;
+
+    // --- descriptors ---
+    VkDescriptorSetLayout    descriptor_set_layout;
+    VkDescriptorPool         descriptor_pool;
+    VkDescriptorSet          descriptor_sets[MAX_FRAMES_IN_FLIGHT];
+
+    // --- vertex / index buffers ---
+    VkBuffer                 vertex_buffer;
+    VkDeviceMemory           vertex_buffer_memory;
+    VkBuffer                 index_buffer;
+    VkDeviceMemory           index_buffer_memory;
+    uint32_t                 index_count;
+
+    // --- fallback 1×1 texture (used when no real texture is bound) ---
+    VkImage                  fallback_image;
+    VkDeviceMemory           fallback_memory;
+    VkImageView              fallback_view;
+    VkSampler                fallback_sampler;
 
     // --- command submission ---
     VkCommandPool            command_pool;

@@ -40,9 +40,9 @@ static void opengl_end_frame(Renderer *self) {
     // Would call glfwSwapBuffers or emscripten equivalent.
 }
 
-static void opengl_draw_triangle(Renderer *self) {
+static void opengl_draw_quad(Renderer *self) {
     (void)self;
-    // Would issue a glDrawArrays call.
+    // Would issue a glDrawArrays/glDrawElements call.
 }
 
 // ---- Public API -----------------------------------------------------------
@@ -62,7 +62,7 @@ Renderer opengl_renderer_create(Platform *platform) {
             .shutdown       = opengl_shutdown,
             .begin_frame    = opengl_begin_frame,
             .end_frame      = opengl_end_frame,
-            .draw_triangle  = opengl_draw_triangle,
+            .draw_quad      = opengl_draw_quad,
         },
         .backend_data = ctx,
     };

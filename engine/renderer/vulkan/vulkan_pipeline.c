@@ -106,6 +106,36 @@ static bool create_render_pass(VulkanContext *ctx) {
 }
 
 // ---------------------------------------------------------------------------
+// Descriptor set layout
+// ---------------------------------------------------------------------------
+
+static bool create_descriptor_set_layout(VulkanContext *ctx) {
+    // Binding 0: combined image sampler (texture)
+    VkDescriptorSetLayoutBinding sampler_binding = {
+        .binding            = 0,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount    = 1,
+        .stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .pImmutableSamplers = nullptr,
+    };
+
+    VkDescriptorSetLayoutCreateInfo ci = {
+        .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = 1,
+        .pBindings    = &sampler_binding,
+    };
+
+    if (vkCreateDescriptorSetLayout(ctx->device, &ci, nullptr,
+                                    &ctx->descriptor_set_layout) != VK_SUCCESS) {
+        fprintf(stderr, "[vulkan] failed to create descriptor set layout\n");
+        return false;
+    }
+
+    printf("[vulkan] descriptor set layout created\n");
+    return true;
+}
+
+// ---------------------------------------------------------------------------
 // Graphics pipeline
 // ---------------------------------------------------------------------------
 
@@ -113,6 +143,7 @@ bool vulkan_pipeline_create(VulkanContext *ctx,
                             const char *vert_path,
                             const char *frag_path) {
     if (!create_render_pass(ctx)) return false;
+    if (!create_descriptor_set_layout(ctx)) return false;
 
     // Load SPIR-V.
     size_t vert_size = 0, frag_size = 0;
@@ -149,9 +180,41 @@ bool vulkan_pipeline_create(VulkanContext *ctx,
         },
     };
 
-    // No vertex input — vertices are hardcoded in the shader.
+    // --- Vertex input: pos (vec2) + uv (vec2) + color (vec3) ----------------
+
+    VkVertexInputBindingDescription binding_desc = {
+        .binding   = 0,
+        .stride    = sizeof(Vertex),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+    };
+
+    VkVertexInputAttributeDescription attr_descs[3] = {
+        { // location 0 — position
+            .location = 0,
+            .binding  = 0,
+            .format   = VK_FORMAT_R32G32_SFLOAT,
+            .offset   = offsetof(Vertex, pos),
+        },
+        { // location 1 — UV
+            .location = 1,
+            .binding  = 0,
+            .format   = VK_FORMAT_R32G32_SFLOAT,
+            .offset   = offsetof(Vertex, uv),
+        },
+        { // location 2 — color
+            .location = 2,
+            .binding  = 0,
+            .format   = VK_FORMAT_R32G32B32_SFLOAT,
+            .offset   = offsetof(Vertex, color),
+        },
+    };
+
     VkPipelineVertexInputStateCreateInfo vertex_input = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount   = 1,
+        .pVertexBindingDescriptions      = &binding_desc,
+        .vertexAttributeDescriptionCount = 3,
+        .pVertexAttributeDescriptions    = attr_descs,
     };
 
     VkPipelineInputAssemblyStateCreateInfo input_assembly = {
@@ -182,7 +245,7 @@ bool vulkan_pipeline_create(VulkanContext *ctx,
         .polygonMode = VK_POLYGON_MODE_FILL,
         .lineWidth   = 1.0f,
         .cullMode    = VK_CULL_MODE_BACK_BIT,
-        .frontFace   = VK_FRONT_FACE_CLOCKWISE,
+        .frontFace   = VK_FRONT_FACE_COUNTER_CLOCKWISE,
     };
 
     VkPipelineMultisampleStateCreateInfo multisample = {
@@ -193,7 +256,13 @@ bool vulkan_pipeline_create(VulkanContext *ctx,
     VkPipelineColorBlendAttachmentState blend_att = {
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-        .blendEnable    = VK_FALSE,
+        .blendEnable         = VK_TRUE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp        = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .alphaBlendOp        = VK_BLEND_OP_ADD,
     };
 
     VkPipelineColorBlendStateCreateInfo blend = {
@@ -202,8 +271,11 @@ bool vulkan_pipeline_create(VulkanContext *ctx,
         .pAttachments    = &blend_att,
     };
 
+    // Pipeline layout now references the descriptor set layout.
     VkPipelineLayoutCreateInfo layout_ci = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts    = &ctx->descriptor_set_layout,
     };
 
     if (vkCreatePipelineLayout(ctx->device, &layout_ci, nullptr,
@@ -256,6 +328,10 @@ void vulkan_pipeline_destroy(VulkanContext *ctx) {
     if (ctx->pipeline_layout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(ctx->device, ctx->pipeline_layout, nullptr);
         ctx->pipeline_layout = VK_NULL_HANDLE;
+    }
+    if (ctx->descriptor_set_layout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(ctx->device, ctx->descriptor_set_layout, nullptr);
+        ctx->descriptor_set_layout = VK_NULL_HANDLE;
     }
     if (ctx->render_pass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(ctx->device, ctx->render_pass, nullptr);

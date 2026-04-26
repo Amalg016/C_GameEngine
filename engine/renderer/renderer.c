@@ -63,8 +63,8 @@ void renderer_end_frame(Renderer *r) {
     }
 }
 
-void renderer_draw_triangle(Renderer *r) {
-    if (r != nullptr && r->api.draw_triangle != nullptr) {
-        r->api.draw_triangle(r);
+void renderer_draw_quad(Renderer *r) {
+    if (r != nullptr && r->api.draw_quad != nullptr) {
+        r->api.draw_quad(r);
     }
 }

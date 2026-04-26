@@ -77,7 +77,7 @@ void engine_run(Engine *engine) {
         platform_poll_events(engine->platform);
 
         if (renderer_begin_frame(&engine->renderer)) {
-            renderer_draw_triangle(&engine->renderer);
+            renderer_draw_quad(&engine->renderer);
             renderer_end_frame(&engine->renderer);
         }
     }

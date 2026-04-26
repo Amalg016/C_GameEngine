@@ -28,7 +28,7 @@ typedef struct RendererAPI {
     void (*shutdown)(Renderer *self);
     bool (*begin_frame)(Renderer *self);
     void (*end_frame)(Renderer *self);
-    void (*draw_triangle)(Renderer *self);
+    void (*draw_quad)(Renderer *self);
 } RendererAPI;
 
 struct Renderer {
@@ -53,6 +53,6 @@ bool renderer_init(Renderer *r);
 void renderer_shutdown(Renderer *r);
 bool renderer_begin_frame(Renderer *r);
 void renderer_end_frame(Renderer *r);
-void renderer_draw_triangle(Renderer *r);
+void renderer_draw_quad(Renderer *r);
 
 #endif // ENGINE_RENDERER_H

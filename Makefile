@@ -22,7 +22,8 @@ SRC_ENGINE := engine/renderer/renderer.c \
 SRC_VULKAN := engine/renderer/vulkan/vulkan_renderer.c \
               engine/renderer/vulkan/vulkan_device.c \
               engine/renderer/vulkan/vulkan_swapchain.c \
-              engine/renderer/vulkan/vulkan_pipeline.c
+              engine/renderer/vulkan/vulkan_pipeline.c \
+              engine/renderer/vulkan/vulkan_buffer.c
 
 SRC_OPENGL := engine/renderer/opengl/opengl_renderer.c
 

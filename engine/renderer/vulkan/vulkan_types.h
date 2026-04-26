@@ -22,6 +22,19 @@ typedef struct Vertex {
 } Vertex;
 
 // ---------------------------------------------------------------------------
+// Texture — wraps a VkImage + view + sampler.
+// ---------------------------------------------------------------------------
+
+typedef struct VulkanTexture {
+    VkImage        image;
+    VkDeviceMemory memory;
+    VkImageView    view;
+    VkSampler      sampler;
+    uint32_t       width;
+    uint32_t       height;
+} VulkanTexture;
+
+// ---------------------------------------------------------------------------
 // Swapchain
 // ---------------------------------------------------------------------------
 
@@ -80,6 +93,10 @@ typedef struct VulkanContext {
     VkDeviceMemory           fallback_memory;
     VkImageView              fallback_view;
     VkSampler                fallback_sampler;
+
+    // --- loaded texture ---
+    VulkanTexture            loaded_texture;
+    bool                     has_loaded_texture;
 
     // --- command submission ---
     VkCommandPool            command_pool;

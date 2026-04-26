@@ -3,6 +3,7 @@
 #include "vulkan_device.h"
 #include "vulkan_pipeline.h"
 #include "vulkan_swapchain.h"
+#include "vulkan_texture.h"
 #include "vulkan_types.h"
 
 #define GLFW_INCLUDE_VULKAN
@@ -10,6 +11,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
+// ---------------------------------------------------------------------------
+// Forward declarations
+// ---------------------------------------------------------------------------
+
+static void vulkan_update_descriptor_sets(VulkanContext *ctx,
+                                           VkImageView    view,
+                                           VkSampler      sampler);
 
 // ---------------------------------------------------------------------------
 // Quad geometry — a full-screen quad with UVs
@@ -336,11 +345,23 @@ static bool create_descriptor_resources(VulkanContext *ctx) {
         return false;
     }
 
-    // Write the fallback texture into each descriptor set.
+    // Write the fallback texture into each descriptor set initially.
+    vulkan_update_descriptor_sets(ctx,
+                                  ctx->fallback_view,
+                                  ctx->fallback_sampler);
+
+    printf("[vulkan] descriptor pool + sets ready\n");
+    return true;
+}
+
+/// Update all per-frame descriptor sets to point to a new image view/sampler.
+static void vulkan_update_descriptor_sets(VulkanContext *ctx,
+                                           VkImageView    view,
+                                           VkSampler      sampler) {
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
         VkDescriptorImageInfo img_info = {
-            .sampler     = ctx->fallback_sampler,
-            .imageView   = ctx->fallback_view,
+            .sampler     = sampler,
+            .imageView   = view,
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         };
 
@@ -355,9 +376,6 @@ static bool create_descriptor_resources(VulkanContext *ctx) {
 
         vkUpdateDescriptorSets(ctx->device, 1, &write, 0, nullptr);
     }
-
-    printf("[vulkan] descriptor pool + sets ready\n");
-    return true;
 }
 
 static void destroy_descriptor_resources(VulkanContext *ctx) {
@@ -413,9 +431,21 @@ static bool vulkan_init(Renderer *self) {
     if (!create_fallback_texture(ctx))
         return false;
 
-    // Descriptor pool + sets.
+    // Descriptor pool + sets (initially bound to fallback).
     if (!create_descriptor_resources(ctx))
         return false;
+
+    // Load the default texture (file.png).
+    if (vulkan_texture_create_from_file(ctx, "assets/images/file.png",
+                                        &ctx->loaded_texture)) {
+        // Re-bind descriptor sets to the loaded texture.
+        vulkan_update_descriptor_sets(ctx,
+                                      ctx->loaded_texture.view,
+                                      ctx->loaded_texture.sampler);
+        ctx->has_loaded_texture = true;
+    } else {
+        printf("[vulkan] using fallback texture (file.png not found)\n");
+    }
 
     printf("[vulkan] renderer fully initialised\n");
     return true;
@@ -426,6 +456,10 @@ static void vulkan_shutdown(Renderer *self) {
     if (ctx->device != VK_NULL_HANDLE)
         vkDeviceWaitIdle(ctx->device);
 
+    if (ctx->has_loaded_texture) {
+        vulkan_texture_destroy(ctx, &ctx->loaded_texture);
+        ctx->has_loaded_texture = false;
+    }
     destroy_descriptor_resources(ctx);
     destroy_fallback_texture(ctx);
     destroy_geometry_buffers(ctx);

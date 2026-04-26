@@ -10,7 +10,7 @@
 # ============================================================================
 
 CC        := gcc
-CFLAGS    := -std=c23 -Wall -Wextra -Wpedantic
+CFLAGS    := -std=c23 -Wall -Wextra -Wpedantic -Ithird_party
 LDFLAGS   :=
 
 # --- source files ----------------------------------------------------------
@@ -23,9 +23,12 @@ SRC_VULKAN := engine/renderer/vulkan/vulkan_renderer.c \
               engine/renderer/vulkan/vulkan_device.c \
               engine/renderer/vulkan/vulkan_swapchain.c \
               engine/renderer/vulkan/vulkan_pipeline.c \
-              engine/renderer/vulkan/vulkan_buffer.c
+              engine/renderer/vulkan/vulkan_buffer.c \
+              engine/renderer/vulkan/vulkan_texture.c
 
 SRC_OPENGL := engine/renderer/opengl/opengl_renderer.c
+
+SRC_THIRD_PARTY := third_party/stb_image.c
 
 SRC_APP    := app/main.c
 
@@ -39,7 +42,7 @@ all: vulkan
 
 # ---- Vulkan (default) -----------------------------------------------------
 
-VULKAN_SRCS := $(SRC_APP) $(SRC_ENGINE) $(SRC_VULKAN)
+VULKAN_SRCS := $(SRC_APP) $(SRC_ENGINE) $(SRC_VULKAN) $(SRC_THIRD_PARTY)
 VULKAN_BIN  := engine_vulkan
 
 vulkan: shaders $(VULKAN_SRCS)

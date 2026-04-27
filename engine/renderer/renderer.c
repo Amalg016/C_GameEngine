@@ -68,3 +68,22 @@ void renderer_draw_quad(Renderer *r) {
         r->api.draw_quad(r);
     }
 }
+
+void *renderer_load_texture(Renderer *r, const char *path) {
+    if (r != nullptr && r->api.load_texture != nullptr) {
+        return r->api.load_texture(r, path);
+    }
+    return nullptr;
+}
+
+void renderer_destroy_texture(Renderer *r, void *gpu_data) {
+    if (r != nullptr && r->api.destroy_texture != nullptr) {
+        r->api.destroy_texture(r, gpu_data);
+    }
+}
+
+void renderer_bind_texture(Renderer *r, void *gpu_data) {
+    if (r != nullptr && r->api.bind_texture != nullptr) {
+        r->api.bind_texture(r, gpu_data);
+    }
+}

@@ -624,6 +624,49 @@ static void vulkan_end_frame(Renderer *self) {
 }
 
 // ---------------------------------------------------------------------------
+// Asset-manager texture callbacks
+// ---------------------------------------------------------------------------
+
+/// Load a texture from disk — returns a heap-allocated VulkanTexture*.
+static void *vulkan_load_texture(Renderer *self, const char *path) {
+    VulkanContext *ctx = (VulkanContext *)self->backend_data;
+
+    VulkanTexture *tex = calloc(1, sizeof(VulkanTexture));
+    if (tex == nullptr) return nullptr;
+
+    if (!vulkan_texture_create_from_file(ctx, path, tex)) {
+        free(tex);
+        return nullptr;
+    }
+    return tex;
+}
+
+/// Destroy a texture loaded by vulkan_load_texture.
+static void vulkan_destroy_texture_cb(Renderer *self, void *gpu_data) {
+    VulkanContext *ctx = (VulkanContext *)self->backend_data;
+    VulkanTexture *tex = (VulkanTexture *)gpu_data;
+    if (tex == nullptr) return;
+
+    vkDeviceWaitIdle(ctx->device);
+    vulkan_texture_destroy(ctx, tex);
+    free(tex);
+}
+
+/// Bind a texture for subsequent draw calls — updates descriptor sets.
+static void vulkan_bind_texture(Renderer *self, void *gpu_data) {
+    VulkanContext *ctx = (VulkanContext *)self->backend_data;
+    VulkanTexture *tex = (VulkanTexture *)gpu_data;
+
+    if (tex != nullptr) {
+        vulkan_update_descriptor_sets(ctx, tex->view, tex->sampler);
+    } else {
+        // Rebind fallback.
+        vulkan_update_descriptor_sets(ctx, ctx->fallback_view,
+                                      ctx->fallback_sampler);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -638,11 +681,14 @@ Renderer vulkan_renderer_create(Platform *platform) {
 
     Renderer r = {
         .api = {
-            .init        = vulkan_init,
-            .shutdown    = vulkan_shutdown,
-            .begin_frame = vulkan_begin_frame,
-            .end_frame   = vulkan_end_frame,
-            .draw_quad   = vulkan_draw_quad,
+            .init            = vulkan_init,
+            .shutdown        = vulkan_shutdown,
+            .begin_frame     = vulkan_begin_frame,
+            .end_frame       = vulkan_end_frame,
+            .draw_quad       = vulkan_draw_quad,
+            .load_texture    = vulkan_load_texture,
+            .destroy_texture = vulkan_destroy_texture_cb,
+            .bind_texture    = vulkan_bind_texture,
         },
         .backend_data = ctx,
     };
@@ -653,3 +699,4 @@ void vulkan_renderer_destroy(Renderer *r) {
     free(r->backend_data);
     r->backend_data = nullptr;
 }
+

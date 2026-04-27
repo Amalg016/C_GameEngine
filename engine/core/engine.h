@@ -2,6 +2,7 @@
 #define ENGINE_CORE_ENGINE_H
 
 #include "../renderer/renderer.h"   // RendererBackend
+#include "asset_manager.h"          // AssetManager, AssetHandle
 
 #include <stdint.h>
 
@@ -34,5 +35,11 @@ void engine_run(Engine *engine);
 
 /// Tear down renderer, platform, and free all engine memory.
 void engine_destroy(Engine *engine);
+
+/// Access the engine's asset manager (e.g. from app code).
+AssetManager *engine_get_asset_manager(Engine *engine);
+
+/// Access the engine's renderer (needed for bind_texture etc.).
+Renderer *engine_get_renderer(Engine *engine);
 
 #endif // ENGINE_CORE_ENGINE_H

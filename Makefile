@@ -17,6 +17,7 @@ LDFLAGS   :=
 
 SRC_ENGINE := engine/renderer/renderer.c \
               engine/core/engine.c \
+              engine/core/asset_manager.c \
               engine/platform/platform.c
 
 SRC_VULKAN := engine/renderer/vulkan/vulkan_renderer.c \

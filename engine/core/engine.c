@@ -5,13 +5,32 @@
 #include <stdlib.h>
 
 // ---------------------------------------------------------------------------
+// Adapter functions for the asset manager callbacks.
+//
+// The asset manager's callback signatures take (void *backend_ctx, ...),
+// but the Renderer API expects (Renderer *self, ...).  These thin adapters
+// bridge the gap.
+// ---------------------------------------------------------------------------
+
+static void *am_load_texture(void *backend_ctx, const char *path) {
+    Renderer *r = (Renderer *)backend_ctx;
+    return renderer_load_texture(r, path);
+}
+
+static void am_destroy_texture(void *backend_ctx, void *gpu_data) {
+    Renderer *r = (Renderer *)backend_ctx;
+    renderer_destroy_texture(r, gpu_data);
+}
+
+// ---------------------------------------------------------------------------
 // Engine internals
 // ---------------------------------------------------------------------------
 
 struct Engine {
-    Platform *platform;
-    Renderer  renderer;
-    bool      renderer_alive;   // true between renderer_init and shutdown
+    Platform      *platform;
+    Renderer       renderer;
+    AssetManager  *asset_manager;
+    bool           renderer_alive;   // true between renderer_init and shutdown
 };
 
 // ---------------------------------------------------------------------------
@@ -49,6 +68,16 @@ Engine *engine_create(const EngineConfig *config) {
         return nullptr;
     }
 
+    // --- asset manager ------------------------------------------------------
+    engine->asset_manager = asset_manager_create();
+    if (engine->asset_manager == nullptr) {
+        fprintf(stderr, "[engine] asset manager creation failed\n");
+        renderer_destroy(&engine->renderer);
+        platform_destroy(engine->platform);
+        free(engine);
+        return nullptr;
+    }
+
     printf("[engine] created successfully (backend=%s)\n",
            config->backend == RENDERER_BACKEND_VULKAN ? "vulkan" : "opengl");
 
@@ -70,6 +99,14 @@ void engine_run(Engine *engine) {
         return;
     }
     engine->renderer_alive = true;
+
+    // Wire asset manager callbacks now that the renderer is initialised.
+    AssetManagerCallbacks cbs = {
+        .backend_ctx     = &engine->renderer,
+        .load_texture    = am_load_texture,
+        .destroy_texture = am_destroy_texture,
+    };
+    asset_manager_set_callbacks(engine->asset_manager, &cbs);
 
     printf("[engine] entering main loop\n");
 
@@ -101,10 +138,26 @@ void engine_destroy(Engine *engine) {
         engine->renderer_alive = false;
     }
 
+    // Asset manager must be destroyed BEFORE the renderer — it may need
+    // to free GPU resources via the renderer callbacks.
+    asset_manager_destroy(engine->asset_manager);
+
     renderer_destroy(&engine->renderer);
     platform_destroy(engine->platform);
 
     printf("[engine] destroyed\n");
 
     free(engine);
+}
+
+// ---------------------------------------------------------------------------
+// Accessors
+// ---------------------------------------------------------------------------
+
+AssetManager *engine_get_asset_manager(Engine *engine) {
+    return engine != nullptr ? engine->asset_manager : nullptr;
+}
+
+Renderer *engine_get_renderer(Engine *engine) {
+    return engine != nullptr ? &engine->renderer : nullptr;
 }

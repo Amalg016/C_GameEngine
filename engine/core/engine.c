@@ -30,11 +30,11 @@ struct Engine {
     Platform      *platform;
     Renderer       renderer;
     AssetManager  *asset_manager;
-    bool           renderer_alive;   // true between renderer_init and shutdown
+    bool           renderer_alive;   // true between engine_init and shutdown
 };
 
 // ---------------------------------------------------------------------------
-// engine_create — stand up platform + renderer from a simple config.
+// engine_create — stand up platform + renderer struct from a simple config.
 // ---------------------------------------------------------------------------
 
 Engine *engine_create(const EngineConfig *config) {
@@ -85,18 +85,22 @@ Engine *engine_create(const EngineConfig *config) {
 }
 
 // ---------------------------------------------------------------------------
-// engine_run — the main loop.  Backend-agnostic.
+// engine_init — initialise the renderer backend.
 // ---------------------------------------------------------------------------
 
-void engine_run(Engine *engine) {
+bool engine_init(Engine *engine) {
     if (engine == nullptr) {
-        fprintf(stderr, "[engine] null engine — aborting\n");
-        return;
+        fprintf(stderr, "[engine] null engine\n");
+        return false;
+    }
+
+    if (engine->renderer_alive) {
+        return true; // already initialised
     }
 
     if (!renderer_init(&engine->renderer)) {
         fprintf(stderr, "[engine] renderer initialisation failed\n");
-        return;
+        return false;
     }
     engine->renderer_alive = true;
 
@@ -107,6 +111,25 @@ void engine_run(Engine *engine) {
         .destroy_texture = am_destroy_texture,
     };
     asset_manager_set_callbacks(engine->asset_manager, &cbs);
+
+    printf("[engine] renderer initialised — ready for asset loading\n");
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// engine_run — the main loop.  Backend-agnostic.
+// ---------------------------------------------------------------------------
+
+void engine_run(Engine *engine) {
+    if (engine == nullptr) {
+        fprintf(stderr, "[engine] null engine — aborting\n");
+        return;
+    }
+
+    // Auto-init if the app forgot.
+    if (!engine->renderer_alive) {
+        if (!engine_init(engine)) return;
+    }
 
     printf("[engine] entering main loop\n");
 
@@ -120,9 +143,6 @@ void engine_run(Engine *engine) {
     }
 
     printf("[engine] main loop finished\n");
-
-    renderer_shutdown(&engine->renderer);
-    engine->renderer_alive = false;
 }
 
 // ---------------------------------------------------------------------------

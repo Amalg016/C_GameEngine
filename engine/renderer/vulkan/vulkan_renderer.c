@@ -435,18 +435,6 @@ static bool vulkan_init(Renderer *self) {
     if (!create_descriptor_resources(ctx))
         return false;
 
-    // Load the default texture (file.png).
-    if (vulkan_texture_create_from_file(ctx, "assets/images/file.png",
-                                        &ctx->loaded_texture)) {
-        // Re-bind descriptor sets to the loaded texture.
-        vulkan_update_descriptor_sets(ctx,
-                                      ctx->loaded_texture.view,
-                                      ctx->loaded_texture.sampler);
-        ctx->has_loaded_texture = true;
-    } else {
-        printf("[vulkan] using fallback texture (file.png not found)\n");
-    }
-
     printf("[vulkan] renderer fully initialised\n");
     return true;
 }
@@ -456,10 +444,6 @@ static void vulkan_shutdown(Renderer *self) {
     if (ctx->device != VK_NULL_HANDLE)
         vkDeviceWaitIdle(ctx->device);
 
-    if (ctx->has_loaded_texture) {
-        vulkan_texture_destroy(ctx, &ctx->loaded_texture);
-        ctx->has_loaded_texture = false;
-    }
     destroy_descriptor_resources(ctx);
     destroy_fallback_texture(ctx);
     destroy_geometry_buffers(ctx);

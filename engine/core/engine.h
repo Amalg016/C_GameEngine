@@ -9,10 +9,13 @@
 // ---------------------------------------------------------------------------
 // Engine — owns the full application lifecycle.
 //
-// The app creates an Engine via engine_create(), hands it a config describing
-// window properties and the desired renderer backend, then calls engine_run()
-// which blocks until the window is closed.  engine_destroy() tears everything
-// down in the correct order.
+// Usage:
+//   1. engine_create()  — creates platform + renderer (not yet initialised)
+//   2. engine_init()    — initialises the renderer (GPU ready for asset loading)
+//   3. load assets via engine_get_asset_manager()
+//   4. engine_run()     — blocks in the main loop until window close
+//   5. release assets
+//   6. engine_destroy() — tears everything down
 // ---------------------------------------------------------------------------
 
 /// Application-level configuration — the ONLY thing the app needs to provide.
@@ -30,7 +33,13 @@ typedef struct Engine Engine;
 /// Returns nullptr on failure.
 Engine *engine_create(const EngineConfig *config);
 
+/// Initialise the renderer backend (GPU resources become available).
+/// Must be called before loading assets or calling engine_run().
+/// Returns false on failure.
+bool engine_init(Engine *engine);
+
 /// Run the main loop.  Blocks until the window is closed.
+/// engine_init() must have been called first.
 void engine_run(Engine *engine);
 
 /// Tear down renderer, platform, and free all engine memory.

@@ -94,10 +94,6 @@ typedef struct VulkanContext {
     VkImageView              fallback_view;
     VkSampler                fallback_sampler;
 
-    // --- loaded texture ---
-    VulkanTexture            loaded_texture;
-    bool                     has_loaded_texture;
-
     // --- command submission ---
     VkCommandPool            command_pool;
     VkCommandBuffer          command_buffers[MAX_FRAMES_IN_FLIGHT];

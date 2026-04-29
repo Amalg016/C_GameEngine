@@ -23,14 +23,23 @@ static void am_destroy_texture(void *backend_ctx, void *gpu_data) {
 }
 
 // ---------------------------------------------------------------------------
+// Default fixed timestep rate (Hz).
+// ---------------------------------------------------------------------------
+
+static const double DEFAULT_FIXED_HZ = 60.0;
+
+// ---------------------------------------------------------------------------
 // Engine internals
 // ---------------------------------------------------------------------------
 
 struct Engine {
-    Platform      *platform;
-    Renderer       renderer;
-    AssetManager  *asset_manager;
-    bool           renderer_alive;   // true between engine_init and shutdown
+    Platform         *platform;
+    Renderer          renderer;
+    AssetManager     *asset_manager;
+    Clock             clock;
+    EngineCallbacks   callbacks;
+    double            fixed_hz;         // fixed update rate in Hz
+    bool              renderer_alive;   // true between engine_init and shutdown
 };
 
 // ---------------------------------------------------------------------------
@@ -48,6 +57,8 @@ Engine *engine_create(const EngineConfig *config) {
         fprintf(stderr, "[engine] failed to allocate Engine\n");
         return nullptr;
     }
+
+    engine->fixed_hz = DEFAULT_FIXED_HZ;
 
     // --- platform -----------------------------------------------------------
     engine->platform = platform_create(config->title,
@@ -117,7 +128,33 @@ bool engine_init(Engine *engine) {
 }
 
 // ---------------------------------------------------------------------------
-// engine_run — the main loop.  Backend-agnostic.
+// engine_set_callbacks — register application hooks.
+// ---------------------------------------------------------------------------
+
+void engine_set_callbacks(Engine *engine, const EngineCallbacks *callbacks) {
+    if (engine == nullptr) return;
+    engine->callbacks = callbacks != nullptr
+        ? *callbacks
+        : (EngineCallbacks){0};
+}
+
+// ---------------------------------------------------------------------------
+// engine_set_fixed_timestep — change the fixed update rate (Hz).
+// ---------------------------------------------------------------------------
+
+void engine_set_fixed_timestep(Engine *engine, double hz) {
+    if (engine == nullptr) return;
+    engine->fixed_hz = hz > 0.0 ? hz : DEFAULT_FIXED_HZ;
+}
+
+// ---------------------------------------------------------------------------
+// engine_run — the main loop.  Fixed timestep + variable rendering.
+//
+// The "Fix Your Timestep" pattern:
+//   1. clock_tick()  — measure frame delta, add to accumulator
+//   2. Drain the accumulator in fixed-dt chunks → on_fixed_update
+//   3. One variable-dt call per frame           → on_update
+//   4. Render with interpolation alpha          → on_render
 // ---------------------------------------------------------------------------
 
 void engine_run(Engine *engine) {
@@ -131,18 +168,53 @@ void engine_run(Engine *engine) {
         if (!engine_init(engine)) return;
     }
 
-    printf("[engine] entering main loop\n");
+    double fixed_dt = 1.0 / engine->fixed_hz;
+    clock_start(&engine->clock, fixed_dt);
+
+    printf("[engine] entering main loop (fixed_dt=%.4fs / %.0f Hz)\n",
+           fixed_dt, engine->fixed_hz);
 
     while (!platform_should_close(engine->platform)) {
         platform_poll_events(engine->platform);
+        clock_tick(&engine->clock);
 
+        // ----- fixed update: drain accumulator at a constant rate ----------
+        while (engine->clock.accumulator >= engine->clock.fixed_dt) {
+            if (engine->callbacks.on_fixed_update) {
+                engine->callbacks.on_fixed_update(
+                    engine->callbacks.user_data,
+                    engine->clock.fixed_dt);
+            }
+            engine->clock.accumulator -= engine->clock.fixed_dt;
+        }
+
+        // ----- variable update: once per frame -----------------------------
+        if (engine->callbacks.on_update) {
+            engine->callbacks.on_update(
+                engine->callbacks.user_data,
+                engine->clock.delta_time);
+        }
+
+        // ----- render ------------------------------------------------------
         if (renderer_begin_frame(&engine->renderer)) {
-            renderer_draw_quad(&engine->renderer);
+            double alpha = clock_get_alpha(&engine->clock);
+
+            if (engine->callbacks.on_render) {
+                engine->callbacks.on_render(
+                    engine->callbacks.user_data,
+                    alpha);
+            } else {
+                // Fallback: keep existing behaviour when no callback is set.
+                renderer_draw_quad(&engine->renderer);
+            }
+
             renderer_end_frame(&engine->renderer);
         }
     }
 
-    printf("[engine] main loop finished\n");
+    printf("[engine] main loop finished — %lu frames, %.1fs elapsed\n",
+           (unsigned long)engine->clock.frame_count,
+           engine->clock.elapsed);
 }
 
 // ---------------------------------------------------------------------------
@@ -180,4 +252,8 @@ AssetManager *engine_get_asset_manager(Engine *engine) {
 
 Renderer *engine_get_renderer(Engine *engine) {
     return engine != nullptr ? &engine->renderer : nullptr;
+}
+
+const Clock *engine_get_clock(const Engine *engine) {
+    return engine != nullptr ? &engine->clock : nullptr;
 }

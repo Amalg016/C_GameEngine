@@ -84,3 +84,9 @@ void platform_get_framebuffer_size(const Platform *p,
     if (width  != nullptr) *width  = (uint32_t)w;
     if (height != nullptr) *height = (uint32_t)h;
 }
+
+// ---- timing ---------------------------------------------------------------
+
+double platform_get_time(void) {
+    return glfwGetTime();
+}

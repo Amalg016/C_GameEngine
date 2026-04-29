@@ -3,6 +3,56 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// ---------------------------------------------------------------------------
+// Application state — passed to every callback via user_data.
+// ---------------------------------------------------------------------------
+
+typedef struct AppState {
+    Renderer *renderer;
+    double    fixed_time;       // total simulated time from fixed updates
+    double    frame_time;       // total wall-clock time from variable updates
+    uint64_t  fixed_ticks;      // number of fixed updates executed
+} AppState;
+
+// ---------------------------------------------------------------------------
+// Callbacks
+// ---------------------------------------------------------------------------
+
+/// Called at a locked rate (default 60 Hz).
+/// Physics, collision, deterministic game logic go here.
+static void on_fixed_update(void *user_data, double dt) {
+    AppState *app = (AppState *)user_data;
+    app->fixed_time += dt;
+    app->fixed_ticks++;
+
+    // Throttled diagnostic — print once per second of sim-time.
+    if (app->fixed_ticks % 60 == 0) {
+        printf("[fixed_update] sim_time=%.2fs  tick=%lu\n",
+               app->fixed_time, (unsigned long)app->fixed_ticks);
+    }
+}
+
+/// Called once per frame with the real (variable) frame delta.
+/// Input processing, animations, camera smoothing go here.
+static void on_update(void *user_data, double dt) {
+    AppState *app = (AppState *)user_data;
+    app->frame_time += dt;
+    (void)app; // will be used for input/animation later
+}
+
+/// Called once per frame, inside begin/end frame.
+/// `alpha` is the interpolation factor between fixed steps.
+static void on_render(void *user_data, double alpha) {
+    AppState *app = (AppState *)user_data;
+    (void)alpha;  // will be used for position interpolation later
+
+    renderer_draw_quad(app->renderer);
+}
+
+// ---------------------------------------------------------------------------
+// main
+// ---------------------------------------------------------------------------
+
 int main(void) {
     printf("=== GameEngine starting ===\n");
 
@@ -61,10 +111,37 @@ int main(void) {
            asset_manager_get_ref_count(am, tex_a));
 
     // -----------------------------------------------------------------------
-    // Run the main loop — texture is displayed on the quad.
+    // Set up callbacks and run the main loop.
     // -----------------------------------------------------------------------
 
+    AppState app_state = {
+        .renderer    = r,
+        .fixed_time  = 0.0,
+        .frame_time  = 0.0,
+        .fixed_ticks = 0,
+    };
+
+    EngineCallbacks callbacks = {
+        .user_data       = &app_state,
+        .on_fixed_update = on_fixed_update,
+        .on_update       = on_update,
+        .on_render       = on_render,
+    };
+    engine_set_callbacks(engine, &callbacks);
+
     engine_run(engine);
+
+    // -----------------------------------------------------------------------
+    // Print final timing stats from the clock.
+    // -----------------------------------------------------------------------
+
+    const Clock *clk = engine_get_clock(engine);
+    if (clk != nullptr) {
+        printf("[demo] total frames: %lu  elapsed: %.2fs  avg fps: %.1f\n",
+               (unsigned long)clk->frame_count,
+               clk->elapsed,
+               clk->frame_count > 0 ? (double)clk->frame_count / clk->elapsed : 0.0);
+    }
 
     // Release the last reference — GPU resources freed.
     asset_manager_release(am, tex_a);

@@ -35,4 +35,7 @@ void *platform_get_window_handle(const Platform *p);
 void platform_get_framebuffer_size(const Platform *p,
                                    uint32_t *width, uint32_t *height);
 
+/// Returns elapsed time in seconds since GLFW init (high-res monotonic clock).
+double platform_get_time(void);
+
 #endif // ENGINE_PLATFORM_H

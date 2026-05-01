@@ -107,6 +107,9 @@ typedef struct VulkanContext {
     uint32_t                 image_index;
     bool                     framebuffer_resized;
 
+    // --- current view-projection matrix (set per frame by the camera) ---
+    float                    view_proj[16];
+
     // --- back-pointer to GLFW window (cast from void*) ---
     void                    *window_handle;
 } VulkanContext;

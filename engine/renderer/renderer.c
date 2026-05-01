@@ -69,6 +69,12 @@ void renderer_draw_quad(Renderer *r) {
     }
 }
 
+void renderer_set_view_projection(Renderer *r, const float *mat4x4) {
+    if (r != nullptr && r->api.set_view_projection != nullptr) {
+        r->api.set_view_projection(r, mat4x4);
+    }
+}
+
 void renderer_draw_sprite(Renderer *r, float x, float y, float w, float h) {
     if (r != nullptr && r->api.draw_sprite != nullptr) {
         r->api.draw_sprite(r, x, y, w, h);

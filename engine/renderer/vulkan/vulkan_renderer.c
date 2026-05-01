@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // ---------------------------------------------------------------------------
 // Forward declarations
@@ -522,6 +523,15 @@ static bool vulkan_begin_frame(Renderer *self) {
     };
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
+    // Default VP to identity — overwritten if camera_update + set_view_projection is called.
+    float identity[16] = {
+        1,0,0,0,
+        0,1,0,0,
+        0,0,1,0,
+        0,0,0,1,
+    };
+    memcpy(ctx->view_proj, identity, sizeof(identity));
+
     return true;
 }
 
@@ -535,10 +545,13 @@ static void vulkan_draw_quad(Renderer *self) {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx->graphics_pipeline);
 
-    // Push identity transform.
-    float pc[4] = { 1.0f, 1.0f, 0.0f, 0.0f };  // scale=(1,1), translate=(0,0)
+    // Push constants: mat4 view_proj + vec2 scale + vec2 translate.
+    struct { float vp[16]; float scale[2]; float translate[2]; } pc;
+    memcpy(pc.vp, ctx->view_proj, sizeof(pc.vp));
+    pc.scale[0] = 1.0f;  pc.scale[1] = 1.0f;
+    pc.translate[0] = 0.0f;  pc.translate[1] = 0.0f;
     vkCmdPushConstants(cmd, ctx->pipeline_layout,
-                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), pc);
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
 
     // Bind vertex buffer.
     VkBuffer     vbufs[]  = { ctx->vertex_buffer };
@@ -557,7 +570,7 @@ static void vulkan_draw_quad(Renderer *self) {
     vkCmdDrawIndexed(cmd, ctx->index_count, 1, 0, 0, 0);
 }
 
-/// Draw a textured sprite at (x, y) with size (w, h) in NDC.
+/// Draw a textured sprite at (x, y) with size (w, h) in world space.
 static void vulkan_draw_sprite(Renderer *self,
                                 float x, float y, float w, float h) {
     VulkanContext *ctx = (VulkanContext *)self->backend_data;
@@ -567,11 +580,13 @@ static void vulkan_draw_sprite(Renderer *self,
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx->graphics_pipeline);
 
-    // Push sprite transform: the unit quad (-0.5..0.5) is scaled to (w, h)
-    // and translated so that (x, y) is the sprite's centre.
-    float pc[4] = { w, h, x, y };
+    // Push constants: mat4 view_proj + vec2 scale + vec2 translate.
+    struct { float vp[16]; float scale[2]; float translate[2]; } pc;
+    memcpy(pc.vp, ctx->view_proj, sizeof(pc.vp));
+    pc.scale[0] = w;  pc.scale[1] = h;
+    pc.translate[0] = x;  pc.translate[1] = y;
     vkCmdPushConstants(cmd, ctx->pipeline_layout,
-                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), pc);
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
 
     // Bind vertex buffer.
     VkBuffer     vbufs[]  = { ctx->vertex_buffer };
@@ -588,6 +603,14 @@ static void vulkan_draw_sprite(Renderer *self,
 
     // Draw the indexed quad.
     vkCmdDrawIndexed(cmd, ctx->index_count, 1, 0, 0, 0);
+}
+
+/// Store the view-projection matrix for the current frame.
+static void vulkan_set_view_projection(Renderer *self, const float *mat4x4) {
+    VulkanContext *ctx = (VulkanContext *)self->backend_data;
+    if (mat4x4 != nullptr) {
+        memcpy(ctx->view_proj, mat4x4, 16 * sizeof(float));
+    }
 }
 
 static void vulkan_end_frame(Renderer *self) {
@@ -705,15 +728,16 @@ Renderer vulkan_renderer_create(Platform *platform) {
 
     Renderer r = {
         .api = {
-            .init            = vulkan_init,
-            .shutdown        = vulkan_shutdown,
-            .begin_frame     = vulkan_begin_frame,
-            .end_frame       = vulkan_end_frame,
-            .draw_quad       = vulkan_draw_quad,
-            .draw_sprite     = vulkan_draw_sprite,
-            .load_texture    = vulkan_load_texture,
-            .destroy_texture = vulkan_destroy_texture_cb,
-            .bind_texture    = vulkan_bind_texture,
+            .init                = vulkan_init,
+            .shutdown            = vulkan_shutdown,
+            .begin_frame         = vulkan_begin_frame,
+            .end_frame           = vulkan_end_frame,
+            .draw_quad           = vulkan_draw_quad,
+            .set_view_projection = vulkan_set_view_projection,
+            .draw_sprite         = vulkan_draw_sprite,
+            .load_texture        = vulkan_load_texture,
+            .destroy_texture     = vulkan_destroy_texture_cb,
+            .bind_texture        = vulkan_bind_texture,
         },
         .backend_data = ctx,
     };

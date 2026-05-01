@@ -30,6 +30,11 @@ typedef struct RendererAPI {
     void (*end_frame)(Renderer *self);
     void (*draw_quad)(Renderer *self);
 
+    /// Set the view-projection matrix for the current frame.
+    /// Must be called after begin_frame() and before any draw calls.
+    /// `mat4x4` points to 16 floats in column-major order.
+    void (*set_view_projection)(Renderer *self, const float *mat4x4);
+
     /// Draw a textured quad at (x, y) with size (w, h) in NDC.
     /// The currently bound texture is used.
     void (*draw_sprite)(Renderer *self, float x, float y, float w, float h);
@@ -72,6 +77,7 @@ void  renderer_shutdown(Renderer *r);
 bool  renderer_begin_frame(Renderer *r);
 void  renderer_end_frame(Renderer *r);
 void  renderer_draw_quad(Renderer *r);
+void  renderer_set_view_projection(Renderer *r, const float *mat4x4);
 void  renderer_draw_sprite(Renderer *r, float x, float y, float w, float h);
 
 void *renderer_load_texture(Renderer *r, const char *path);

@@ -1,4 +1,5 @@
 #include "../engine/core/engine.h"
+#include "../engine/platform/platform.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,12 +23,15 @@ typedef struct Sprite {
 // ---------------------------------------------------------------------------
 
 typedef struct AppState {
+    Engine           *engine;
     Renderer         *renderer;
     AssetManager     *am;
     World            *world;
     HierarchyContext  hctx;          // hierarchy ComponentIds
+    CameraContext     cam_ctx;       // camera ComponentId
     ComponentId       c_velocity;
     ComponentId       c_sprite;
+    Entity            camera_entity;
     double            fixed_time;
     double            frame_time;
     uint64_t          fixed_ticks;
@@ -56,25 +60,24 @@ static void system_movement(AppState *app, double dt) {
         lt->x += vel->dx * (float)dt;
         lt->y += vel->dy * (float)dt;
 
-        // Bounce off NDC edges.
-        // Use the just-updated local position (which equals world pos for
-        // root entities) — NOT the stale WorldTransform.
+        // Bounce off world-space edges (±5 units for an ortho_size of 5).
         float half_w = lt->sx * 0.5f;
         float half_h = lt->sy * 0.5f;
+        float bound  = 5.0f;
 
-        if (lt->x + half_w > 1.0f) {
-            lt->x = 1.0f - half_w;      // clamp to boundary
+        if (lt->x + half_w > bound) {
+            lt->x = bound - half_w;
             vel->dx = -vel->dx;
-        } else if (lt->x - half_w < -1.0f) {
-            lt->x = -1.0f + half_w;
+        } else if (lt->x - half_w < -bound) {
+            lt->x = -bound + half_w;
             vel->dx = -vel->dx;
         }
 
-        if (lt->y + half_h > 1.0f) {
-            lt->y = 1.0f - half_h;
+        if (lt->y + half_h > bound) {
+            lt->y = bound - half_h;
             vel->dy = -vel->dy;
-        } else if (lt->y - half_h < -1.0f) {
-            lt->y = -1.0f + half_h;
+        } else if (lt->y - half_h < -bound) {
+            lt->y = -bound + half_h;
             vel->dy = -vel->dy;
         }
     }
@@ -140,6 +143,13 @@ static void on_fixed_update(void *user_data, double dt) {
     // 3. Propagate transforms (LocalTransform → WorldTransform).
     hierarchy_update_transforms(app->world, &app->hctx);
 
+    // 4. Update camera matrices.
+    Platform *plat = engine_get_platform(app->engine);
+    uint32_t fb_w = 800, fb_h = 600;
+    platform_get_framebuffer_size(plat, &fb_w, &fb_h);
+    float aspect = (fb_h > 0) ? (float)fb_w / (float)fb_h : 1.0f;
+    camera_update(app->world, &app->cam_ctx, &app->hctx, aspect);
+
     // Throttled diagnostic.
     if (app->fixed_ticks % 60 == 0) {
         printf("[demo] sim=%.2fs\n", app->fixed_time);
@@ -156,6 +166,13 @@ static void on_update(void *user_data, double dt) {
 /// Called once per frame, inside begin/end frame.
 static void on_render(void *user_data, double alpha) {
     AppState *app = (AppState *)user_data;
+
+    // Push the camera's VP matrix to the renderer.
+    const Mat4 *vp = camera_get_view_proj(app->world, &app->cam_ctx);
+    if (vp != nullptr) {
+        renderer_set_view_projection(app->renderer, (const float *)vp);
+    }
+
     system_sprite_render(app, (float)alpha);
 }
 
@@ -193,7 +210,7 @@ int main(void) {
     printf("=== GameEngine starting ===\n");
 
     EngineConfig config = {
-        .title   = "GameEngine — Hierarchy Demo",
+        .title   = "GameEngine — Camera Demo",
         .width   = 800,
         .height  = 600,
 #ifdef USE_OPENGL
@@ -220,12 +237,33 @@ int main(void) {
     World        *world = engine_get_world(engine);
 
     // -----------------------------------------------------------------------
-    // Initialise hierarchy + register app components
+    // Initialise hierarchy + camera + register app components
     // -----------------------------------------------------------------------
 
-    HierarchyContext hctx = hierarchy_init(world);
-    ComponentId c_velocity = ECS_REGISTER(world, Velocity);
-    ComponentId c_sprite   = ECS_REGISTER(world, Sprite);
+    HierarchyContext hctx    = hierarchy_init(world);
+    CameraContext    cam_ctx = camera_init(world);
+    ComponentId c_velocity   = ECS_REGISTER(world, Velocity);
+    ComponentId c_sprite     = ECS_REGISTER(world, Sprite);
+
+    // -----------------------------------------------------------------------
+    // Create camera entity
+    // -----------------------------------------------------------------------
+
+    Entity camera_ent = world_entity_create(world);
+
+    // Camera sits at origin, looking down -Z.
+    LocalTransform cam_lt = { .x = 0.0f, .y = 0.0f, .sx = 1.0f, .sy = 1.0f };
+    world_add_component(world, camera_ent, hctx.c_local_transform, &cam_lt);
+
+    WorldTransform cam_wt = { .x = 0.0f, .y = 0.0f, .sx = 1.0f, .sy = 1.0f };
+    world_add_component(world, camera_ent, hctx.c_world_transform, &cam_wt);
+
+    // Start with orthographic projection (half-height = 5 world units).
+    Camera cam = camera_default_ortho(5.0f);
+    world_add_component(world, camera_ent, cam_ctx.c_camera, &cam);
+
+    printf("[demo] camera entity=%u (orthographic, ortho_size=5.0)\n",
+           camera_ent);
 
     // -----------------------------------------------------------------------
     // Load texture
@@ -239,22 +277,22 @@ int main(void) {
     }
 
     // -----------------------------------------------------------------------
-    // Spawn parent + child entities
+    // Spawn parent + child entities (now in world-space coordinates)
     // -----------------------------------------------------------------------
 
-    // Parent: bouncing sprite at centre, 0.4×0.4 NDC.
+    // Parent: bouncing sprite at centre, 2×2 world units.
     Entity parent = spawn_sprite(world, &hctx, c_sprite,
-                                  0.0f, 0.0f, 0.4f, 0.4f, tex);
+                                  0.0f, 0.0f, 2.0f, 2.0f, tex);
 
     // Give parent a velocity so it bounces.
-    Velocity parent_vel = { .dx = 0.3f, .dy = 0.2f };
+    Velocity parent_vel = { .dx = 3.0f, .dy = 2.0f };
     world_add_component(world, parent, c_velocity, &parent_vel);
 
     // Child: smaller sprite attached to parent with a local offset.
-    // Position (0.8, 0.6) is relative to parent, scale (0.5, 0.5) means
+    // Position (2.0, 1.5) is relative to parent, scale (0.5, 0.5) means
     // half the parent's size.
     Entity child = spawn_sprite(world, &hctx, c_sprite,
-                                 0.8f, 0.6f, 0.5f, 0.5f, tex);
+                                 2.0f, 1.5f, 0.5f, 0.5f, tex);
 
     // Attach child to parent.
     hierarchy_set_parent(world, &hctx, child, parent);
@@ -269,15 +307,18 @@ int main(void) {
     // -----------------------------------------------------------------------
 
     AppState app_state = {
-        .renderer    = r,
-        .am          = am,
-        .world       = world,
-        .hctx        = hctx,
-        .c_velocity  = c_velocity,
-        .c_sprite    = c_sprite,
-        .fixed_time  = 0.0,
-        .frame_time  = 0.0,
-        .fixed_ticks = 0,
+        .engine        = engine,
+        .renderer      = r,
+        .am            = am,
+        .world         = world,
+        .hctx          = hctx,
+        .cam_ctx       = cam_ctx,
+        .c_velocity    = c_velocity,
+        .c_sprite      = c_sprite,
+        .camera_entity = camera_ent,
+        .fixed_time    = 0.0,
+        .frame_time    = 0.0,
+        .fixed_ticks   = 0,
     };
 
     EngineCallbacks callbacks = {

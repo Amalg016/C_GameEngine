@@ -276,3 +276,7 @@ const Clock *engine_get_clock(const Engine *engine) {
 World *engine_get_world(Engine *engine) {
     return engine != nullptr ? engine->world : nullptr;
 }
+
+Platform *engine_get_platform(Engine *engine) {
+    return engine != nullptr ? engine->platform : nullptr;
+}

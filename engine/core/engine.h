@@ -86,4 +86,7 @@ const Clock *engine_get_clock(const Engine *engine);
 /// Access the engine's ECS world.
 World *engine_get_world(Engine *engine);
 
+/// Access the engine's platform (e.g. for framebuffer size queries).
+Platform *engine_get_platform(Engine *engine);
+
 #endif // ENGINE_CORE_ENGINE_H

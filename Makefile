@@ -22,6 +22,7 @@ SRC_ENGINE := engine/renderer/renderer.c \
               engine/core/ecs/component_pool.c \
               engine/core/ecs/world.c \
               engine/core/ecs/hierarchy.c \
+              engine/core/ecs/camera.c \
               engine/platform/platform.c
 
 SRC_VULKAN := engine/renderer/vulkan/vulkan_renderer.c \

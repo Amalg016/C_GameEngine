@@ -12,6 +12,7 @@
 #include "component_pool.h"
 #include "world.h"
 #include "hierarchy.h"
+#include "camera.h"
 
 // ---------------------------------------------------------------------------
 // Convenience macros

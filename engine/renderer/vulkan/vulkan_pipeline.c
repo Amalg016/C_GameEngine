@@ -271,11 +271,11 @@ bool vulkan_pipeline_create(VulkanContext *ctx,
         .pAttachments    = &blend_att,
     };
 
-    // Push constant range: 16 bytes (vec2 scale + vec2 translate) for sprites.
+    // Push constant range: 80 bytes (mat4 view_proj + vec2 scale + vec2 translate).
     VkPushConstantRange push_range = {
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
         .offset     = 0,
-        .size       = 4 * sizeof(float),   // scale.xy + translate.xy
+        .size       = 16 * sizeof(float) + 4 * sizeof(float),  // mat4(64) + scale+translate(16) = 80
     };
 
     // Pipeline layout now references the descriptor set layout + push constants.

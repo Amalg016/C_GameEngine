@@ -9,8 +9,9 @@
 
 /// 2D transform — position and size in NDC (-1..1).
 typedef struct Transform {
-    float x, y;     // centre position
-    float w, h;     // width and height
+    float x, y;             // current centre position
+    float prev_x, prev_y;   // position at the previous fixed step (for interpolation)
+    float w, h;             // width and height
 } Transform;
 
 /// Velocity — rate of change of position per second.
@@ -44,6 +45,9 @@ typedef struct AppState {
 // ---------------------------------------------------------------------------
 
 /// Movement system: Position += Velocity * dt  (fixed rate)
+///
+/// Snapshots current position into prev_x/prev_y BEFORE updating, so the
+/// render system can interpolate between the two for smooth motion.
 static void system_movement(AppState *app, double dt) {
     ComponentPool *vel_pool = world_get_pool(app->world, app->c_velocity);
     if (vel_pool == nullptr) return;
@@ -57,6 +61,10 @@ static void system_movement(AppState *app, double dt) {
                             world_get_pool(app->world, app->c_transform), ent);
 
         if (t != nullptr) {
+            // Snapshot for interpolation.
+            t->prev_x = t->x;
+            t->prev_y = t->y;
+
             t->x += vel->dx * (float)dt;
             t->y += vel->dy * (float)dt;
 
@@ -69,8 +77,15 @@ static void system_movement(AppState *app, double dt) {
     }
 }
 
+/// Linear interpolation helper.
+static inline float lerpf(float a, float b, float t) {
+    return a + (b - a) * t;
+}
+
 /// Sprite render system: bind texture + draw_sprite for each entity.
-static void system_sprite_render(AppState *app) {
+/// Uses `alpha` to interpolate between the previous and current physics
+/// position, giving buttery-smooth motion regardless of frame rate.
+static void system_sprite_render(AppState *app, float alpha) {
     ComponentPool *sprite_pool = world_get_pool(app->world, app->c_sprite);
     if (sprite_pool == nullptr) return;
 
@@ -84,12 +99,16 @@ static void system_sprite_render(AppState *app) {
 
         if (t == nullptr) continue;
 
+        // Interpolate between previous and current physics position.
+        float render_x = lerpf(t->prev_x, t->x, alpha);
+        float render_y = lerpf(t->prev_y, t->y, alpha);
+
         // Bind the sprite's texture.
         void *gpu_data = asset_manager_get_data(app->am, spr->texture);
         renderer_bind_texture(app->renderer, gpu_data);
 
-        // Draw the sprite at its transform position/size.
-        renderer_draw_sprite(app->renderer, t->x, t->y, t->w, t->h);
+        // Draw the sprite at the interpolated position.
+        renderer_draw_sprite(app->renderer, render_x, render_y, t->w, t->h);
     }
 }
 
@@ -127,10 +146,9 @@ static void on_update(void *user_data, double dt) {
 /// Called once per frame, inside begin/end frame.
 static void on_render(void *user_data, double alpha) {
     AppState *app = (AppState *)user_data;
-    (void)alpha;  // will be used for position interpolation later
 
-    // Run the sprite render system — draws all entities with Sprite + Transform.
-    system_sprite_render(app);
+    // Run the sprite render system with interpolation alpha.
+    system_sprite_render(app, (float)alpha);
 }
 
 // ---------------------------------------------------------------------------
@@ -193,8 +211,9 @@ int main(void) {
     Entity sprite_entity = world_entity_create(world);
 
     ECS_ADD(world, sprite_entity, c_transform, Transform, {
-        .x = 0.0f, .y = 0.0f,     // centre of screen
-        .w = 0.5f, .h = 0.5f,     // half the screen
+        .x = 0.0f, .y = 0.0f,         // centre of screen
+        .prev_x = 0.0f, .prev_y = 0.0f,
+        .w = 0.5f, .h = 0.5f,         // half the screen
     });
 
     ECS_ADD(world, sprite_entity, c_velocity, Velocity, {

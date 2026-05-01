@@ -4,17 +4,10 @@
 #include <stdlib.h>
 
 // ---------------------------------------------------------------------------
-// ECS Components
+// App-defined ECS Components
 // ---------------------------------------------------------------------------
 
-/// 2D transform — position and size in NDC (-1..1).
-typedef struct Transform {
-    float x, y;             // current centre position
-    float prev_x, prev_y;   // position at the previous fixed step (for interpolation)
-    float w, h;             // width and height
-} Transform;
-
-/// Velocity — rate of change of position per second.
+/// Velocity — rate of change of local position per second.
 typedef struct Velocity {
     float dx, dy;
 } Velocity;
@@ -29,25 +22,23 @@ typedef struct Sprite {
 // ---------------------------------------------------------------------------
 
 typedef struct AppState {
-    Renderer     *renderer;
-    AssetManager *am;
-    World        *world;
-    ComponentId   c_transform;
-    ComponentId   c_velocity;
-    ComponentId   c_sprite;
-    double        fixed_time;       // total simulated time from fixed updates
-    double        frame_time;       // total wall-clock time from variable updates
-    uint64_t      fixed_ticks;      // number of fixed updates executed
+    Renderer         *renderer;
+    AssetManager     *am;
+    World            *world;
+    HierarchyContext  hctx;          // hierarchy ComponentIds
+    ComponentId       c_velocity;
+    ComponentId       c_sprite;
+    double            fixed_time;
+    double            frame_time;
+    uint64_t          fixed_ticks;
 } AppState;
 
 // ---------------------------------------------------------------------------
 // Systems
 // ---------------------------------------------------------------------------
 
-/// Movement system: Position += Velocity * dt  (fixed rate)
-///
-/// Snapshots current position into prev_x/prev_y BEFORE updating, so the
-/// render system can interpolate between the two for smooth motion.
+/// Movement system: LocalTransform.pos += Velocity * dt  (fixed rate)
+/// Only moves root/individual entities — children follow via hierarchy.
 static void system_movement(AppState *app, double dt) {
     ComponentPool *vel_pool = world_get_pool(app->world, app->c_velocity);
     if (vel_pool == nullptr) return;
@@ -57,22 +48,34 @@ static void system_movement(AppState *app, double dt) {
         Velocity *vel    = (Velocity *)component_pool_get_dense(vel_pool, i);
 
         Entity ent = entity_make(ent_idx, 0);
-        Transform *t = (Transform *)component_pool_get(
-                            world_get_pool(app->world, app->c_transform), ent);
+        LocalTransform *lt = (LocalTransform *)world_get_component(
+            app->world, ent, app->hctx.c_local_transform);
 
-        if (t != nullptr) {
-            // Snapshot for interpolation.
-            t->prev_x = t->x;
-            t->prev_y = t->y;
+        if (lt == nullptr) continue;
 
-            t->x += vel->dx * (float)dt;
-            t->y += vel->dy * (float)dt;
+        lt->x += vel->dx * (float)dt;
+        lt->y += vel->dy * (float)dt;
 
-            // Bounce off NDC edges.
-            if (t->x + t->w * 0.5f > 1.0f || t->x - t->w * 0.5f < -1.0f)
-                vel->dx = -vel->dx;
-            if (t->y + t->h * 0.5f > 1.0f || t->y - t->h * 0.5f < -1.0f)
-                vel->dy = -vel->dy;
+        // Bounce off NDC edges.
+        // Use the just-updated local position (which equals world pos for
+        // root entities) — NOT the stale WorldTransform.
+        float half_w = lt->sx * 0.5f;
+        float half_h = lt->sy * 0.5f;
+
+        if (lt->x + half_w > 1.0f) {
+            lt->x = 1.0f - half_w;      // clamp to boundary
+            vel->dx = -vel->dx;
+        } else if (lt->x - half_w < -1.0f) {
+            lt->x = -1.0f + half_w;
+            vel->dx = -vel->dx;
+        }
+
+        if (lt->y + half_h > 1.0f) {
+            lt->y = 1.0f - half_h;
+            vel->dy = -vel->dy;
+        } else if (lt->y - half_h < -1.0f) {
+            lt->y = -1.0f + half_h;
+            vel->dy = -vel->dy;
         }
     }
 }
@@ -82,9 +85,7 @@ static inline float lerpf(float a, float b, float t) {
     return a + (b - a) * t;
 }
 
-/// Sprite render system: bind texture + draw_sprite for each entity.
-/// Uses `alpha` to interpolate between the previous and current physics
-/// position, giving buttery-smooth motion regardless of frame rate.
+/// Sprite render system: bind texture + draw at interpolated world position.
 static void system_sprite_render(AppState *app, float alpha) {
     ComponentPool *sprite_pool = world_get_pool(app->world, app->c_sprite);
     if (sprite_pool == nullptr) return;
@@ -94,21 +95,29 @@ static void system_sprite_render(AppState *app, float alpha) {
         Sprite *spr      = (Sprite *)component_pool_get_dense(sprite_pool, i);
 
         Entity ent = entity_make(ent_idx, 0);
-        Transform *t = (Transform *)component_pool_get(
-                            world_get_pool(app->world, app->c_transform), ent);
 
-        if (t == nullptr) continue;
+        // Use world transform for the current position.
+        WorldTransform *wt = (WorldTransform *)world_get_component(
+            app->world, ent, app->hctx.c_world_transform);
+        if (wt == nullptr) continue;
 
-        // Interpolate between previous and current physics position.
-        float render_x = lerpf(t->prev_x, t->x, alpha);
-        float render_y = lerpf(t->prev_y, t->y, alpha);
+        // Interpolate with previous position if available.
+        float render_x = wt->x;
+        float render_y = wt->y;
+
+        PreviousPosition *pp = (PreviousPosition *)world_get_component(
+            app->world, ent, app->hctx.c_prev_position);
+        if (pp != nullptr) {
+            render_x = lerpf(pp->x, wt->x, alpha);
+            render_y = lerpf(pp->y, wt->y, alpha);
+        }
 
         // Bind the sprite's texture.
         void *gpu_data = asset_manager_get_data(app->am, spr->texture);
         renderer_bind_texture(app->renderer, gpu_data);
 
-        // Draw the sprite at the interpolated position.
-        renderer_draw_sprite(app->renderer, render_x, render_y, t->w, t->h);
+        // Draw at interpolated world position with world scale.
+        renderer_draw_sprite(app->renderer, render_x, render_y, wt->sx, wt->sy);
     }
 }
 
@@ -122,17 +131,18 @@ static void on_fixed_update(void *user_data, double dt) {
     app->fixed_time += dt;
     app->fixed_ticks++;
 
-    // Run movement system.
+    // 1. Snapshot world positions BEFORE physics (for interpolation).
+    hierarchy_snapshot_positions(app->world, &app->hctx);
+
+    // 2. Run movement (modifies LocalTransform).
     system_movement(app, dt);
 
-    // Throttled diagnostic — print once per second of sim-time.
+    // 3. Propagate transforms (LocalTransform → WorldTransform).
+    hierarchy_update_transforms(app->world, &app->hctx);
+
+    // Throttled diagnostic.
     if (app->fixed_ticks % 60 == 0) {
-        ComponentPool *t_pool = world_get_pool(app->world, app->c_transform);
-        if (t_pool != nullptr && t_pool->count > 0) {
-            Transform *t = (Transform *)component_pool_get_dense(t_pool, 0);
-            printf("[ecs_demo] sim=%.2fs  sprite pos=(%.2f, %.2f)\n",
-                   app->fixed_time, t->x, t->y);
-        }
+        printf("[demo] sim=%.2fs\n", app->fixed_time);
     }
 }
 
@@ -140,15 +150,39 @@ static void on_fixed_update(void *user_data, double dt) {
 static void on_update(void *user_data, double dt) {
     AppState *app = (AppState *)user_data;
     app->frame_time += dt;
-    (void)app; // will be used for input/animation later
+    (void)app;
 }
 
 /// Called once per frame, inside begin/end frame.
 static void on_render(void *user_data, double alpha) {
     AppState *app = (AppState *)user_data;
-
-    // Run the sprite render system with interpolation alpha.
     system_sprite_render(app, (float)alpha);
+}
+
+// ---------------------------------------------------------------------------
+// Helper — spawn a sprite entity with LocalTransform + WorldTransform +
+//          PreviousPosition + Sprite.
+// ---------------------------------------------------------------------------
+
+static Entity spawn_sprite(World *world, const HierarchyContext *hctx,
+                            ComponentId c_sprite,
+                            float x, float y, float sx, float sy,
+                            AssetHandle texture) {
+    Entity e = world_entity_create(world);
+
+    LocalTransform lt = { .x = x, .y = y, .sx = sx, .sy = sy };
+    world_add_component(world, e, hctx->c_local_transform, &lt);
+
+    WorldTransform wt = { .x = x, .y = y, .sx = sx, .sy = sy };
+    world_add_component(world, e, hctx->c_world_transform, &wt);
+
+    PreviousPosition pp = { .x = x, .y = y };
+    world_add_component(world, e, hctx->c_prev_position, &pp);
+
+    Sprite spr = { .texture = texture };
+    world_add_component(world, e, c_sprite, &spr);
+
+    return e;
 }
 
 // ---------------------------------------------------------------------------
@@ -159,7 +193,7 @@ int main(void) {
     printf("=== GameEngine starting ===\n");
 
     EngineConfig config = {
-        .title   = "GameEngine — Sprite Demo",
+        .title   = "GameEngine — Hierarchy Demo",
         .width   = 800,
         .height  = 600,
 #ifdef USE_OPENGL
@@ -181,20 +215,20 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    AssetManager *am = engine_get_asset_manager(engine);
-    Renderer     *r  = engine_get_renderer(engine);
+    AssetManager *am    = engine_get_asset_manager(engine);
+    Renderer     *r     = engine_get_renderer(engine);
     World        *world = engine_get_world(engine);
 
     // -----------------------------------------------------------------------
-    // Register ECS components
+    // Initialise hierarchy + register app components
     // -----------------------------------------------------------------------
 
-    ComponentId c_transform = ECS_REGISTER(world, Transform);
-    ComponentId c_velocity  = ECS_REGISTER(world, Velocity);
-    ComponentId c_sprite    = ECS_REGISTER(world, Sprite);
+    HierarchyContext hctx = hierarchy_init(world);
+    ComponentId c_velocity = ECS_REGISTER(world, Velocity);
+    ComponentId c_sprite   = ECS_REGISTER(world, Sprite);
 
     // -----------------------------------------------------------------------
-    // Load the texture via the asset manager
+    // Load texture
     // -----------------------------------------------------------------------
 
     AssetHandle tex = asset_manager_load_texture(am, "assets/images/file.png");
@@ -205,26 +239,30 @@ int main(void) {
     }
 
     // -----------------------------------------------------------------------
-    // Spawn a sprite entity
+    // Spawn parent + child entities
     // -----------------------------------------------------------------------
 
-    Entity sprite_entity = world_entity_create(world);
+    // Parent: bouncing sprite at centre, 0.4×0.4 NDC.
+    Entity parent = spawn_sprite(world, &hctx, c_sprite,
+                                  0.0f, 0.0f, 0.4f, 0.4f, tex);
 
-    ECS_ADD(world, sprite_entity, c_transform, Transform, {
-        .x = 0.0f, .y = 0.0f,         // centre of screen
-        .prev_x = 0.0f, .prev_y = 0.0f,
-        .w = 0.5f, .h = 0.5f,         // half the screen
-    });
+    // Give parent a velocity so it bounces.
+    Velocity parent_vel = { .dx = 0.3f, .dy = 0.2f };
+    world_add_component(world, parent, c_velocity, &parent_vel);
 
-    ECS_ADD(world, sprite_entity, c_velocity, Velocity, {
-        .dx = 0.3f, .dy = 0.2f,   // slow drift
-    });
+    // Child: smaller sprite attached to parent with a local offset.
+    // Position (0.8, 0.6) is relative to parent, scale (0.5, 0.5) means
+    // half the parent's size.
+    Entity child = spawn_sprite(world, &hctx, c_sprite,
+                                 0.8f, 0.6f, 0.5f, 0.5f, tex);
 
-    ECS_ADD(world, sprite_entity, c_sprite, Sprite, {
-        .texture = tex,
-    });
+    // Attach child to parent.
+    hierarchy_set_parent(world, &hctx, child, parent);
 
-    printf("[demo] spawned sprite entity %u with file.png\n", sprite_entity);
+    // Do an initial propagation so WorldTransform is correct for frame 0.
+    hierarchy_update_transforms(world, &hctx);
+
+    printf("[demo] parent=%u  child=%u (attached)\n", parent, child);
 
     // -----------------------------------------------------------------------
     // Set up callbacks and run
@@ -234,7 +272,7 @@ int main(void) {
         .renderer    = r,
         .am          = am,
         .world       = world,
-        .c_transform = c_transform,
+        .hctx        = hctx,
         .c_velocity  = c_velocity,
         .c_sprite    = c_sprite,
         .fixed_time  = 0.0,

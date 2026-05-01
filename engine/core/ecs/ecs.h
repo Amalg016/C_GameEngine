@@ -11,6 +11,7 @@
 #include "ecs_types.h"
 #include "component_pool.h"
 #include "world.h"
+#include "hierarchy.h"
 
 // ---------------------------------------------------------------------------
 // Convenience macros

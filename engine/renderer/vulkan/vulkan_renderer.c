@@ -526,12 +526,52 @@ static bool vulkan_begin_frame(Renderer *self) {
 }
 
 static void vulkan_draw_quad(Renderer *self) {
+    // Draw the quad at identity transform (scale=1, translate=0) for
+    // backward compatibility.
     VulkanContext *ctx = (VulkanContext *)self->backend_data;
     uint32_t frame = ctx->current_frame;
     VkCommandBuffer cmd = ctx->command_buffers[frame];
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx->graphics_pipeline);
+
+    // Push identity transform.
+    float pc[4] = { 1.0f, 1.0f, 0.0f, 0.0f };  // scale=(1,1), translate=(0,0)
+    vkCmdPushConstants(cmd, ctx->pipeline_layout,
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), pc);
+
+    // Bind vertex buffer.
+    VkBuffer     vbufs[]  = { ctx->vertex_buffer };
+    VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(cmd, 0, 1, vbufs, offsets);
+
+    // Bind index buffer.
+    vkCmdBindIndexBuffer(cmd, ctx->index_buffer, 0, VK_INDEX_TYPE_UINT16);
+
+    // Bind descriptor set (texture).
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            ctx->pipeline_layout, 0, 1,
+                            &ctx->descriptor_sets[frame], 0, nullptr);
+
+    // Draw the indexed quad.
+    vkCmdDrawIndexed(cmd, ctx->index_count, 1, 0, 0, 0);
+}
+
+/// Draw a textured sprite at (x, y) with size (w, h) in NDC.
+static void vulkan_draw_sprite(Renderer *self,
+                                float x, float y, float w, float h) {
+    VulkanContext *ctx = (VulkanContext *)self->backend_data;
+    uint32_t frame = ctx->current_frame;
+    VkCommandBuffer cmd = ctx->command_buffers[frame];
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      ctx->graphics_pipeline);
+
+    // Push sprite transform: the unit quad (-0.5..0.5) is scaled to (w, h)
+    // and translated so that (x, y) is the sprite's centre.
+    float pc[4] = { w, h, x, y };
+    vkCmdPushConstants(cmd, ctx->pipeline_layout,
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), pc);
 
     // Bind vertex buffer.
     VkBuffer     vbufs[]  = { ctx->vertex_buffer };
@@ -670,6 +710,7 @@ Renderer vulkan_renderer_create(Platform *platform) {
             .begin_frame     = vulkan_begin_frame,
             .end_frame       = vulkan_end_frame,
             .draw_quad       = vulkan_draw_quad,
+            .draw_sprite     = vulkan_draw_sprite,
             .load_texture    = vulkan_load_texture,
             .destroy_texture = vulkan_destroy_texture_cb,
             .bind_texture    = vulkan_bind_texture,

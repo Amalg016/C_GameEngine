@@ -4,16 +4,24 @@
 #include <stdlib.h>
 
 // ---------------------------------------------------------------------------
-// Demo components
+// ECS Components
 // ---------------------------------------------------------------------------
 
-typedef struct Position {
-    float x, y;
-} Position;
+/// 2D transform — position and size in NDC (-1..1).
+typedef struct Transform {
+    float x, y;     // centre position
+    float w, h;     // width and height
+} Transform;
 
+/// Velocity — rate of change of position per second.
 typedef struct Velocity {
     float dx, dy;
 } Velocity;
+
+/// Sprite — references a loaded texture via asset handle.
+typedef struct Sprite {
+    AssetHandle texture;
+} Sprite;
 
 // ---------------------------------------------------------------------------
 // Application state — passed to every callback via user_data.
@@ -21,58 +29,95 @@ typedef struct Velocity {
 
 typedef struct AppState {
     Renderer     *renderer;
+    AssetManager *am;
     World        *world;
-    ComponentId   c_pos;
-    ComponentId   c_vel;
+    ComponentId   c_transform;
+    ComponentId   c_velocity;
+    ComponentId   c_sprite;
     double        fixed_time;       // total simulated time from fixed updates
     double        frame_time;       // total wall-clock time from variable updates
     uint64_t      fixed_ticks;      // number of fixed updates executed
 } AppState;
 
 // ---------------------------------------------------------------------------
-// Callbacks
+// Systems
 // ---------------------------------------------------------------------------
 
-/// Called at a locked rate (default 60 Hz).
-/// Physics, collision, deterministic game logic go here.
-static void on_fixed_update(void *user_data, double dt) {
-    AppState *app = (AppState *)user_data;
-    app->fixed_time += dt;
-    app->fixed_ticks++;
-
-    // --- ECS movement system: Position += Velocity * dt --------------------
-    ComponentPool *vel_pool = world_get_pool(app->world, app->c_vel);
+/// Movement system: Position += Velocity * dt  (fixed rate)
+static void system_movement(AppState *app, double dt) {
+    ComponentPool *vel_pool = world_get_pool(app->world, app->c_velocity);
     if (vel_pool == nullptr) return;
 
     for (uint32_t i = 0; i < vel_pool->count; ++i) {
         uint32_t ent_idx = component_pool_get_entity(vel_pool, i);
         Velocity *vel    = (Velocity *)component_pool_get_dense(vel_pool, i);
 
-        // Look up position by entity index (generation 0 for pool lookup).
-        Entity ent   = entity_make(ent_idx, 0);
-        Position *pos = (Position *)component_pool_get(
-                            world_get_pool(app->world, app->c_pos), ent);
+        Entity ent = entity_make(ent_idx, 0);
+        Transform *t = (Transform *)component_pool_get(
+                            world_get_pool(app->world, app->c_transform), ent);
 
-        if (pos != nullptr) {
-            pos->x += vel->dx * (float)dt;
-            pos->y += vel->dy * (float)dt;
+        if (t != nullptr) {
+            t->x += vel->dx * (float)dt;
+            t->y += vel->dy * (float)dt;
+
+            // Bounce off NDC edges.
+            if (t->x + t->w * 0.5f > 1.0f || t->x - t->w * 0.5f < -1.0f)
+                vel->dx = -vel->dx;
+            if (t->y + t->h * 0.5f > 1.0f || t->y - t->h * 0.5f < -1.0f)
+                vel->dy = -vel->dy;
         }
     }
+}
+
+/// Sprite render system: bind texture + draw_sprite for each entity.
+static void system_sprite_render(AppState *app) {
+    ComponentPool *sprite_pool = world_get_pool(app->world, app->c_sprite);
+    if (sprite_pool == nullptr) return;
+
+    for (uint32_t i = 0; i < sprite_pool->count; ++i) {
+        uint32_t ent_idx = component_pool_get_entity(sprite_pool, i);
+        Sprite *spr      = (Sprite *)component_pool_get_dense(sprite_pool, i);
+
+        Entity ent = entity_make(ent_idx, 0);
+        Transform *t = (Transform *)component_pool_get(
+                            world_get_pool(app->world, app->c_transform), ent);
+
+        if (t == nullptr) continue;
+
+        // Bind the sprite's texture.
+        void *gpu_data = asset_manager_get_data(app->am, spr->texture);
+        renderer_bind_texture(app->renderer, gpu_data);
+
+        // Draw the sprite at its transform position/size.
+        renderer_draw_sprite(app->renderer, t->x, t->y, t->w, t->h);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Callbacks
+// ---------------------------------------------------------------------------
+
+/// Called at a locked rate (default 60 Hz).
+static void on_fixed_update(void *user_data, double dt) {
+    AppState *app = (AppState *)user_data;
+    app->fixed_time += dt;
+    app->fixed_ticks++;
+
+    // Run movement system.
+    system_movement(app, dt);
 
     // Throttled diagnostic — print once per second of sim-time.
     if (app->fixed_ticks % 60 == 0) {
-        // Print position of entity at dense index 0 as a sample.
-        ComponentPool *pos_pool = world_get_pool(app->world, app->c_pos);
-        if (pos_pool != nullptr && pos_pool->count > 0) {
-            Position *p = (Position *)component_pool_get_dense(pos_pool, 0);
-            printf("[ecs_demo] sim=%.2fs  entity_0 pos=(%.1f, %.1f)\n",
-                   app->fixed_time, p->x, p->y);
+        ComponentPool *t_pool = world_get_pool(app->world, app->c_transform);
+        if (t_pool != nullptr && t_pool->count > 0) {
+            Transform *t = (Transform *)component_pool_get_dense(t_pool, 0);
+            printf("[ecs_demo] sim=%.2fs  sprite pos=(%.2f, %.2f)\n",
+                   app->fixed_time, t->x, t->y);
         }
     }
 }
 
 /// Called once per frame with the real (variable) frame delta.
-/// Input processing, animations, camera smoothing go here.
 static void on_update(void *user_data, double dt) {
     AppState *app = (AppState *)user_data;
     app->frame_time += dt;
@@ -80,12 +125,12 @@ static void on_update(void *user_data, double dt) {
 }
 
 /// Called once per frame, inside begin/end frame.
-/// `alpha` is the interpolation factor between fixed steps.
 static void on_render(void *user_data, double alpha) {
     AppState *app = (AppState *)user_data;
     (void)alpha;  // will be used for position interpolation later
 
-    renderer_draw_quad(app->renderer);
+    // Run the sprite render system — draws all entities with Sprite + Transform.
+    system_sprite_render(app);
 }
 
 // ---------------------------------------------------------------------------
@@ -96,7 +141,7 @@ int main(void) {
     printf("=== GameEngine starting ===\n");
 
     EngineConfig config = {
-        .title   = "GameEngine",
+        .title   = "GameEngine — Sprite Demo",
         .width   = 800,
         .height  = 600,
 #ifdef USE_OPENGL
@@ -112,78 +157,67 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    // Initialise the renderer — GPU is now ready for asset loading.
     if (!engine_init(engine)) {
         fprintf(stderr, "failed to init engine\n");
         engine_destroy(engine);
         return EXIT_FAILURE;
     }
 
-    // -----------------------------------------------------------------------
-    // Demonstrate the asset manager: "load once, use many"
-    // -----------------------------------------------------------------------
-
     AssetManager *am = engine_get_asset_manager(engine);
     Renderer     *r  = engine_get_renderer(engine);
+    World        *world = engine_get_world(engine);
 
-    // First load — this actually loads the PNG from disk into GPU memory.
-    AssetHandle tex_a = asset_manager_load_texture(am, "assets/images/file.png");
-    if (tex_a == ASSET_HANDLE_INVALID) {
+    // -----------------------------------------------------------------------
+    // Register ECS components
+    // -----------------------------------------------------------------------
+
+    ComponentId c_transform = ECS_REGISTER(world, Transform);
+    ComponentId c_velocity  = ECS_REGISTER(world, Velocity);
+    ComponentId c_sprite    = ECS_REGISTER(world, Sprite);
+
+    // -----------------------------------------------------------------------
+    // Load the texture via the asset manager
+    // -----------------------------------------------------------------------
+
+    AssetHandle tex = asset_manager_load_texture(am, "assets/images/file.png");
+    if (tex == ASSET_HANDLE_INVALID) {
         fprintf(stderr, "failed to load texture\n");
-    }
-
-    // Second load of the SAME path — cache hit, no GPU upload, ref bumped.
-    AssetHandle tex_b = asset_manager_load_texture(am, "assets/images/file.png");
-
-    printf("[demo] tex_a = %u, tex_b = %u (same handle: %s)\n",
-           tex_a, tex_b, tex_a == tex_b ? "YES ✓" : "NO ✗");
-    printf("[demo] ref_count = %u (expected: 2)\n",
-           asset_manager_get_ref_count(am, tex_a));
-
-    // Bind the texture so the renderer uses it for drawing.
-    void *gpu_data = asset_manager_get_data(am, tex_a);
-    renderer_bind_texture(r, gpu_data);
-
-    // Release one reference — texture stays alive (ref_count → 1).
-    asset_manager_release(am, tex_b);
-    printf("[demo] after one release: ref_count = %u (expected: 1)\n",
-           asset_manager_get_ref_count(am, tex_a));
-
-    // -----------------------------------------------------------------------
-    // Demonstrate the ECS: register components, spawn entities
-    // -----------------------------------------------------------------------
-
-    World *world = engine_get_world(engine);
-
-    ComponentId c_pos = ECS_REGISTER(world, Position);
-    ComponentId c_vel = ECS_REGISTER(world, Velocity);
-
-    // Spawn a few entities with position + velocity.
-    for (int i = 0; i < 5; ++i) {
-        Entity e = world_entity_create(world);
-
-        ECS_ADD(world, e, c_pos, Position,
-                { .x = (float)(i * 10), .y = (float)(i * 5) });
-        ECS_ADD(world, e, c_vel, Velocity,
-                { .dx = (float)(i + 1), .dy = (float)(i + 1) * 0.5f });
-
-        printf("[ecs_demo] spawned entity %u  pos=(%.0f, %.0f)  vel=(%.0f, %.1f)\n",
-               e,
-               ((Position *)world_get_component(world, e, c_pos))->x,
-               ((Position *)world_get_component(world, e, c_pos))->y,
-               ((Velocity *)world_get_component(world, e, c_vel))->dx,
-               ((Velocity *)world_get_component(world, e, c_vel))->dy);
+        engine_destroy(engine);
+        return EXIT_FAILURE;
     }
 
     // -----------------------------------------------------------------------
-    // Set up callbacks and run the main loop.
+    // Spawn a sprite entity
+    // -----------------------------------------------------------------------
+
+    Entity sprite_entity = world_entity_create(world);
+
+    ECS_ADD(world, sprite_entity, c_transform, Transform, {
+        .x = 0.0f, .y = 0.0f,     // centre of screen
+        .w = 0.5f, .h = 0.5f,     // half the screen
+    });
+
+    ECS_ADD(world, sprite_entity, c_velocity, Velocity, {
+        .dx = 0.3f, .dy = 0.2f,   // slow drift
+    });
+
+    ECS_ADD(world, sprite_entity, c_sprite, Sprite, {
+        .texture = tex,
+    });
+
+    printf("[demo] spawned sprite entity %u with file.png\n", sprite_entity);
+
+    // -----------------------------------------------------------------------
+    // Set up callbacks and run
     // -----------------------------------------------------------------------
 
     AppState app_state = {
         .renderer    = r,
+        .am          = am,
         .world       = world,
-        .c_pos       = c_pos,
-        .c_vel       = c_vel,
+        .c_transform = c_transform,
+        .c_velocity  = c_velocity,
+        .c_sprite    = c_sprite,
         .fixed_time  = 0.0,
         .frame_time  = 0.0,
         .fixed_ticks = 0,
@@ -200,7 +234,7 @@ int main(void) {
     engine_run(engine);
 
     // -----------------------------------------------------------------------
-    // Print final timing stats from the clock.
+    // Cleanup
     // -----------------------------------------------------------------------
 
     const Clock *clk = engine_get_clock(engine);
@@ -211,9 +245,7 @@ int main(void) {
                clk->frame_count > 0 ? (double)clk->frame_count / clk->elapsed : 0.0);
     }
 
-    // Release the last reference — GPU resources freed.
-    asset_manager_release(am, tex_a);
-
+    asset_manager_release(am, tex);
     engine_destroy(engine);
 
     printf("=== GameEngine shut down cleanly ===\n");

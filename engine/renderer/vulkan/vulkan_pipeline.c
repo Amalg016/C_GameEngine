@@ -271,11 +271,20 @@ bool vulkan_pipeline_create(VulkanContext *ctx,
         .pAttachments    = &blend_att,
     };
 
-    // Pipeline layout now references the descriptor set layout.
+    // Push constant range: 16 bytes (vec2 scale + vec2 translate) for sprites.
+    VkPushConstantRange push_range = {
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        .offset     = 0,
+        .size       = 4 * sizeof(float),   // scale.xy + translate.xy
+    };
+
+    // Pipeline layout now references the descriptor set layout + push constants.
     VkPipelineLayoutCreateInfo layout_ci = {
-        .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = 1,
-        .pSetLayouts    = &ctx->descriptor_set_layout,
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount         = 1,
+        .pSetLayouts            = &ctx->descriptor_set_layout,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges    = &push_range,
     };
 
     if (vkCreatePipelineLayout(ctx->device, &layout_ci, nullptr,

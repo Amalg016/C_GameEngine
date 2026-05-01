@@ -69,6 +69,12 @@ void renderer_draw_quad(Renderer *r) {
     }
 }
 
+void renderer_draw_sprite(Renderer *r, float x, float y, float w, float h) {
+    if (r != nullptr && r->api.draw_sprite != nullptr) {
+        r->api.draw_sprite(r, x, y, w, h);
+    }
+}
+
 void *renderer_load_texture(Renderer *r, const char *path) {
     if (r != nullptr && r->api.load_texture != nullptr) {
         return r->api.load_texture(r, path);

@@ -4,14 +4,29 @@
 #include <stdlib.h>
 
 // ---------------------------------------------------------------------------
+// Demo components
+// ---------------------------------------------------------------------------
+
+typedef struct Position {
+    float x, y;
+} Position;
+
+typedef struct Velocity {
+    float dx, dy;
+} Velocity;
+
+// ---------------------------------------------------------------------------
 // Application state — passed to every callback via user_data.
 // ---------------------------------------------------------------------------
 
 typedef struct AppState {
-    Renderer *renderer;
-    double    fixed_time;       // total simulated time from fixed updates
-    double    frame_time;       // total wall-clock time from variable updates
-    uint64_t  fixed_ticks;      // number of fixed updates executed
+    Renderer     *renderer;
+    World        *world;
+    ComponentId   c_pos;
+    ComponentId   c_vel;
+    double        fixed_time;       // total simulated time from fixed updates
+    double        frame_time;       // total wall-clock time from variable updates
+    uint64_t      fixed_ticks;      // number of fixed updates executed
 } AppState;
 
 // ---------------------------------------------------------------------------
@@ -25,10 +40,34 @@ static void on_fixed_update(void *user_data, double dt) {
     app->fixed_time += dt;
     app->fixed_ticks++;
 
+    // --- ECS movement system: Position += Velocity * dt --------------------
+    ComponentPool *vel_pool = world_get_pool(app->world, app->c_vel);
+    if (vel_pool == nullptr) return;
+
+    for (uint32_t i = 0; i < vel_pool->count; ++i) {
+        uint32_t ent_idx = component_pool_get_entity(vel_pool, i);
+        Velocity *vel    = (Velocity *)component_pool_get_dense(vel_pool, i);
+
+        // Look up position by entity index (generation 0 for pool lookup).
+        Entity ent   = entity_make(ent_idx, 0);
+        Position *pos = (Position *)component_pool_get(
+                            world_get_pool(app->world, app->c_pos), ent);
+
+        if (pos != nullptr) {
+            pos->x += vel->dx * (float)dt;
+            pos->y += vel->dy * (float)dt;
+        }
+    }
+
     // Throttled diagnostic — print once per second of sim-time.
     if (app->fixed_ticks % 60 == 0) {
-        printf("[fixed_update] sim_time=%.2fs  tick=%lu\n",
-               app->fixed_time, (unsigned long)app->fixed_ticks);
+        // Print position of entity at dense index 0 as a sample.
+        ComponentPool *pos_pool = world_get_pool(app->world, app->c_pos);
+        if (pos_pool != nullptr && pos_pool->count > 0) {
+            Position *p = (Position *)component_pool_get_dense(pos_pool, 0);
+            printf("[ecs_demo] sim=%.2fs  entity_0 pos=(%.1f, %.1f)\n",
+                   app->fixed_time, p->x, p->y);
+        }
     }
 }
 
@@ -111,11 +150,40 @@ int main(void) {
            asset_manager_get_ref_count(am, tex_a));
 
     // -----------------------------------------------------------------------
+    // Demonstrate the ECS: register components, spawn entities
+    // -----------------------------------------------------------------------
+
+    World *world = engine_get_world(engine);
+
+    ComponentId c_pos = ECS_REGISTER(world, Position);
+    ComponentId c_vel = ECS_REGISTER(world, Velocity);
+
+    // Spawn a few entities with position + velocity.
+    for (int i = 0; i < 5; ++i) {
+        Entity e = world_entity_create(world);
+
+        ECS_ADD(world, e, c_pos, Position,
+                { .x = (float)(i * 10), .y = (float)(i * 5) });
+        ECS_ADD(world, e, c_vel, Velocity,
+                { .dx = (float)(i + 1), .dy = (float)(i + 1) * 0.5f });
+
+        printf("[ecs_demo] spawned entity %u  pos=(%.0f, %.0f)  vel=(%.0f, %.1f)\n",
+               e,
+               ((Position *)world_get_component(world, e, c_pos))->x,
+               ((Position *)world_get_component(world, e, c_pos))->y,
+               ((Velocity *)world_get_component(world, e, c_vel))->dx,
+               ((Velocity *)world_get_component(world, e, c_vel))->dy);
+    }
+
+    // -----------------------------------------------------------------------
     // Set up callbacks and run the main loop.
     // -----------------------------------------------------------------------
 
     AppState app_state = {
         .renderer    = r,
+        .world       = world,
+        .c_pos       = c_pos,
+        .c_vel       = c_vel,
         .fixed_time  = 0.0,
         .frame_time  = 0.0,
         .fixed_ticks = 0,

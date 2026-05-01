@@ -36,6 +36,7 @@ struct Engine {
     Platform         *platform;
     Renderer          renderer;
     AssetManager     *asset_manager;
+    World            *world;
     Clock             clock;
     EngineCallbacks   callbacks;
     double            fixed_hz;         // fixed update rate in Hz
@@ -83,6 +84,17 @@ Engine *engine_create(const EngineConfig *config) {
     engine->asset_manager = asset_manager_create();
     if (engine->asset_manager == nullptr) {
         fprintf(stderr, "[engine] asset manager creation failed\n");
+        renderer_destroy(&engine->renderer);
+        platform_destroy(engine->platform);
+        free(engine);
+        return nullptr;
+    }
+
+    // --- ECS world ----------------------------------------------------------
+    engine->world = world_create();
+    if (engine->world == nullptr) {
+        fprintf(stderr, "[engine] ECS world creation failed\n");
+        asset_manager_destroy(engine->asset_manager);
         renderer_destroy(&engine->renderer);
         platform_destroy(engine->platform);
         free(engine);
@@ -230,6 +242,9 @@ void engine_destroy(Engine *engine) {
         engine->renderer_alive = false;
     }
 
+    // ECS world must be destroyed before asset manager / renderer.
+    world_destroy(engine->world);
+
     // Asset manager must be destroyed BEFORE the renderer — it may need
     // to free GPU resources via the renderer callbacks.
     asset_manager_destroy(engine->asset_manager);
@@ -256,4 +271,8 @@ Renderer *engine_get_renderer(Engine *engine) {
 
 const Clock *engine_get_clock(const Engine *engine) {
     return engine != nullptr ? &engine->clock : nullptr;
+}
+
+World *engine_get_world(Engine *engine) {
+    return engine != nullptr ? engine->world : nullptr;
 }

@@ -4,6 +4,7 @@
 #include "../renderer/renderer.h"   // RendererBackend
 #include "asset_manager.h"          // AssetManager, AssetHandle
 #include "clock.h"                  // Clock
+#include "ecs/ecs.h"                // World, Entity, ComponentId
 
 #include <stdint.h>
 
@@ -81,5 +82,8 @@ Renderer *engine_get_renderer(Engine *engine);
 
 /// Access the engine's clock (read-only, for diagnostics / debug overlays).
 const Clock *engine_get_clock(const Engine *engine);
+
+/// Access the engine's ECS world.
+World *engine_get_world(Engine *engine);
 
 #endif // ENGINE_CORE_ENGINE_H

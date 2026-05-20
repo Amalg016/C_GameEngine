@@ -37,10 +37,15 @@ struct Engine {
     Renderer          renderer;
     AssetManager     *asset_manager;
     World            *world;
+    LuaHost          *lua_host;       // created lazily on first script load
+    HierarchyContext  hctx;           // stored here so LuaHost can reference
+    CameraContext     cam_ctx;        // stored here so LuaHost can reference
     Clock             clock;
     EngineCallbacks   callbacks;
     double            fixed_hz;         // fixed update rate in Hz
     bool              renderer_alive;   // true between engine_init and shutdown
+    bool              hctx_inited;      // true after hierarchy_init()
+    bool              cam_ctx_inited;   // true after camera_init()
 };
 
 // ---------------------------------------------------------------------------
@@ -242,6 +247,12 @@ void engine_destroy(Engine *engine) {
         engine->renderer_alive = false;
     }
 
+    // Lua host must be destroyed before the world (it holds World pointers).
+    if (engine->lua_host != nullptr) {
+        lua_host_destroy(engine->lua_host);
+        engine->lua_host = nullptr;
+    }
+
     // ECS world must be destroyed before asset manager / renderer.
     world_destroy(engine->world);
 
@@ -279,4 +290,48 @@ World *engine_get_world(Engine *engine) {
 
 Platform *engine_get_platform(Engine *engine) {
     return engine != nullptr ? engine->platform : nullptr;
+}
+
+LuaHost *engine_get_lua_host(Engine *engine) {
+    return engine != nullptr ? engine->lua_host : nullptr;
+}
+
+HierarchyContext *engine_get_hctx(Engine *engine) {
+    if (engine == nullptr) return nullptr;
+    if (!engine->hctx_inited) {
+        engine->hctx = hierarchy_init(engine->world);
+        engine->hctx_inited = true;
+    }
+    return &engine->hctx;
+}
+
+CameraContext *engine_get_cam_ctx(Engine *engine) {
+    if (engine == nullptr) return nullptr;
+    if (!engine->cam_ctx_inited) {
+        engine->cam_ctx = camera_init(engine->world);
+        engine->cam_ctx_inited = true;
+    }
+    return &engine->cam_ctx;
+}
+
+bool engine_load_script(Engine *engine, const char *path) {
+    if (engine == nullptr || path == nullptr) return false;
+
+    // Lazily create the LuaHost on first script load.
+    if (engine->lua_host == nullptr) {
+        // Ensure hierarchy + camera contexts are initialised.
+        HierarchyContext *hctx = engine_get_hctx(engine);
+        CameraContext *cam_ctx = engine_get_cam_ctx(engine);
+
+        engine->lua_host = lua_host_create(
+            engine->world, hctx, cam_ctx,
+            engine->asset_manager, &engine->renderer);
+
+        if (engine->lua_host == nullptr) {
+            fprintf(stderr, "[engine] failed to create LuaHost\n");
+            return false;
+        }
+    }
+
+    return lua_host_load_script(engine->lua_host, path);
 }

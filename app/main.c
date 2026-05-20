@@ -5,20 +5,6 @@
 #include <stdlib.h>
 
 // ---------------------------------------------------------------------------
-// App-defined ECS Components
-// ---------------------------------------------------------------------------
-
-/// Velocity — rate of change of local position per second.
-typedef struct Velocity {
-    float dx, dy;
-} Velocity;
-
-/// Sprite — references a loaded texture via asset handle.
-typedef struct Sprite {
-    AssetHandle texture;
-} Sprite;
-
-// ---------------------------------------------------------------------------
 // Application state — passed to every callback via user_data.
 // ---------------------------------------------------------------------------
 
@@ -27,24 +13,43 @@ typedef struct AppState {
     Renderer         *renderer;
     AssetManager     *am;
     World            *world;
-    HierarchyContext  hctx;          // hierarchy ComponentIds
-    CameraContext     cam_ctx;       // camera ComponentId
-    ComponentId       c_velocity;
-    ComponentId       c_sprite;
-    Entity            camera_entity;
+    HierarchyContext *hctx;          // engine-managed
+    CameraContext    *cam_ctx;       // engine-managed
+    LuaHost          *lua_host;
     double            fixed_time;
     double            frame_time;
     uint64_t          fixed_ticks;
 } AppState;
 
 // ---------------------------------------------------------------------------
-// Systems
+// Systems (remain in C for performance)
 // ---------------------------------------------------------------------------
 
+/// Linear interpolation helper.
+static inline float lerpf(float a, float b, float t) {
+    return a + (b - a) * t;
+}
+
 /// Movement system: LocalTransform.pos += Velocity * dt  (fixed rate)
-/// Only moves root/individual entities — children follow via hierarchy.
+/// Only processes entities that have both LocalTransform and a Velocity
+/// component (registered by the Lua host).
 static void system_movement(AppState *app, double dt) {
-    ComponentPool *vel_pool = world_get_pool(app->world, app->c_velocity);
+    LuaHost *lua = app->lua_host;
+    if (lua == nullptr) return;
+
+    // The Velocity component is lazy-registered by the Lua bindings.
+    // We need to get its ComponentId from the host.
+    // If no entity has been given a velocity yet, skip.
+    extern bool        lua_host_velocity_registered(LuaHost *host);
+    extern ComponentId lua_host_get_velocity_id(LuaHost *host);
+
+    if (!lua_host_velocity_registered(lua)) return;
+    ComponentId c_vel = lua_host_get_velocity_id(lua);
+
+    // Reuse the LuaVelocity layout (matches Lua bindings).
+    typedef struct { float dx, dy; } Velocity;
+
+    ComponentPool *vel_pool = world_get_pool(app->world, c_vel);
     if (vel_pool == nullptr) return;
 
     for (uint32_t i = 0; i < vel_pool->count; ++i) {
@@ -53,7 +58,7 @@ static void system_movement(AppState *app, double dt) {
 
         Entity ent = entity_make(ent_idx, 0);
         LocalTransform *lt = (LocalTransform *)world_get_component(
-            app->world, ent, app->hctx.c_local_transform);
+            app->world, ent, app->hctx->c_local_transform);
 
         if (lt == nullptr) continue;
 
@@ -83,14 +88,22 @@ static void system_movement(AppState *app, double dt) {
     }
 }
 
-/// Linear interpolation helper.
-static inline float lerpf(float a, float b, float t) {
-    return a + (b - a) * t;
-}
-
 /// Sprite render system: bind texture + draw at interpolated world position.
+/// Uses the Sprite ComponentId registered by the Lua bindings.
 static void system_sprite_render(AppState *app, float alpha) {
-    ComponentPool *sprite_pool = world_get_pool(app->world, app->c_sprite);
+    LuaHost *lua = app->lua_host;
+    if (lua == nullptr) return;
+
+    extern bool        lua_host_sprite_registered(LuaHost *host);
+    extern ComponentId lua_host_get_sprite_id(LuaHost *host);
+
+    if (!lua_host_sprite_registered(lua)) return;
+    ComponentId c_sprite = lua_host_get_sprite_id(lua);
+
+    // Reuse the LuaSprite layout (matches Lua bindings).
+    typedef struct { AssetHandle texture; } Sprite;
+
+    ComponentPool *sprite_pool = world_get_pool(app->world, c_sprite);
     if (sprite_pool == nullptr) return;
 
     for (uint32_t i = 0; i < sprite_pool->count; ++i) {
@@ -101,7 +114,7 @@ static void system_sprite_render(AppState *app, float alpha) {
 
         // Use world transform for the current position.
         WorldTransform *wt = (WorldTransform *)world_get_component(
-            app->world, ent, app->hctx.c_world_transform);
+            app->world, ent, app->hctx->c_world_transform);
         if (wt == nullptr) continue;
 
         // Interpolate with previous position if available.
@@ -109,7 +122,7 @@ static void system_sprite_render(AppState *app, float alpha) {
         float render_y = wt->y;
 
         PreviousPosition *pp = (PreviousPosition *)world_get_component(
-            app->world, ent, app->hctx.c_prev_position);
+            app->world, ent, app->hctx->c_prev_position);
         if (pp != nullptr) {
             render_x = lerpf(pp->x, wt->x, alpha);
             render_y = lerpf(pp->y, wt->y, alpha);
@@ -135,20 +148,24 @@ static void on_fixed_update(void *user_data, double dt) {
     app->fixed_ticks++;
 
     // 1. Snapshot world positions BEFORE physics (for interpolation).
-    hierarchy_snapshot_positions(app->world, &app->hctx);
+    hierarchy_snapshot_positions(app->world, app->hctx);
 
     // 2. Run movement (modifies LocalTransform).
     system_movement(app, dt);
 
+
     // 3. Propagate transforms (LocalTransform → WorldTransform).
-    hierarchy_update_transforms(app->world, &app->hctx);
+    hierarchy_update_transforms(app->world, app->hctx);
 
     // 4. Update camera matrices.
     Platform *plat = engine_get_platform(app->engine);
     uint32_t fb_w = 800, fb_h = 600;
     platform_get_framebuffer_size(plat, &fb_w, &fb_h);
     float aspect = (fb_h > 0) ? (float)fb_w / (float)fb_h : 1.0f;
-    camera_update(app->world, &app->cam_ctx, &app->hctx, aspect);
+    camera_update(app->world, app->cam_ctx, app->hctx, aspect);
+
+    // 5. Lua fixed update hook.
+    lua_host_on_fixed_update(app->lua_host, dt);
 
     // Throttled diagnostic.
     if (app->fixed_ticks % 60 == 0) {
@@ -160,7 +177,9 @@ static void on_fixed_update(void *user_data, double dt) {
 static void on_update(void *user_data, double dt) {
     AppState *app = (AppState *)user_data;
     app->frame_time += dt;
-    (void)app;
+
+    // Lua per-frame update hook.
+    lua_host_on_update(app->lua_host, dt);
 }
 
 /// Called once per frame, inside begin/end frame.
@@ -168,38 +187,15 @@ static void on_render(void *user_data, double alpha) {
     AppState *app = (AppState *)user_data;
 
     // Push the camera's VP matrix to the renderer.
-    const Mat4 *vp = camera_get_view_proj(app->world, &app->cam_ctx);
+    const Mat4 *vp = camera_get_view_proj(app->world, app->cam_ctx);
     if (vp != nullptr) {
         renderer_set_view_projection(app->renderer, (const float *)vp);
     }
 
     system_sprite_render(app, (float)alpha);
-}
 
-// ---------------------------------------------------------------------------
-// Helper — spawn a sprite entity with LocalTransform + WorldTransform +
-//          PreviousPosition + Sprite.
-// ---------------------------------------------------------------------------
-
-static Entity spawn_sprite(World *world, const HierarchyContext *hctx,
-                            ComponentId c_sprite,
-                            float x, float y, float sx, float sy,
-                            AssetHandle texture) {
-    Entity e = world_entity_create(world);
-
-    LocalTransform lt = { .x = x, .y = y, .sx = sx, .sy = sy };
-    world_add_component(world, e, hctx->c_local_transform, &lt);
-
-    WorldTransform wt = { .x = x, .y = y, .sx = sx, .sy = sy };
-    world_add_component(world, e, hctx->c_world_transform, &wt);
-
-    PreviousPosition pp = { .x = x, .y = y };
-    world_add_component(world, e, hctx->c_prev_position, &pp);
-
-    Sprite spr = { .texture = texture };
-    world_add_component(world, e, c_sprite, &spr);
-
-    return e;
+    // Lua render hook.
+    lua_host_on_render(app->lua_host, alpha);
 }
 
 // ---------------------------------------------------------------------------
@@ -210,7 +206,7 @@ int main(void) {
     printf("=== GameEngine starting ===\n");
 
     EngineConfig config = {
-        .title   = "GameEngine — Camera Demo",
+        .title   = "GameEngine — Lua Demo",
         .width   = 800,
         .height  = 600,
 #ifdef USE_OPENGL
@@ -232,75 +228,23 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    AssetManager *am    = engine_get_asset_manager(engine);
-    Renderer     *r     = engine_get_renderer(engine);
-    World        *world = engine_get_world(engine);
-
     // -----------------------------------------------------------------------
-    // Initialise hierarchy + camera + register app components
+    // Load the Lua demo script — this sets up the entire scene.
     // -----------------------------------------------------------------------
 
-    HierarchyContext hctx    = hierarchy_init(world);
-    CameraContext    cam_ctx = camera_init(world);
-    ComponentId c_velocity   = ECS_REGISTER(world, Velocity);
-    ComponentId c_sprite     = ECS_REGISTER(world, Sprite);
-
-    // -----------------------------------------------------------------------
-    // Create camera entity
-    // -----------------------------------------------------------------------
-
-    Entity camera_ent = world_entity_create(world);
-
-    // Camera sits at origin, looking down -Z.
-    LocalTransform cam_lt = { .x = 0.0f, .y = 0.0f, .sx = 1.0f, .sy = 1.0f };
-    world_add_component(world, camera_ent, hctx.c_local_transform, &cam_lt);
-
-    WorldTransform cam_wt = { .x = 0.0f, .y = 0.0f, .sx = 1.0f, .sy = 1.0f };
-    world_add_component(world, camera_ent, hctx.c_world_transform, &cam_wt);
-
-    // Start with orthographic projection (half-height = 5 world units).
-    Camera cam = camera_default_ortho(5.0f);
-    world_add_component(world, camera_ent, cam_ctx.c_camera, &cam);
-
-    printf("[demo] camera entity=%u (orthographic, ortho_size=5.0)\n",
-           camera_ent);
-
-    // -----------------------------------------------------------------------
-    // Load texture
-    // -----------------------------------------------------------------------
-
-    AssetHandle tex = asset_manager_load_texture(am, "assets/images/file.png");
-    if (tex == ASSET_HANDLE_INVALID) {
-        fprintf(stderr, "failed to load texture\n");
+    if (!engine_load_script(engine, "scripts/demo.lua")) {
+        fprintf(stderr, "failed to load Lua script\n");
         engine_destroy(engine);
         return EXIT_FAILURE;
     }
 
-    // -----------------------------------------------------------------------
-    // Spawn parent + child entities (now in world-space coordinates)
-    // -----------------------------------------------------------------------
+    // Call Lua on_init() to spawn entities.
+    LuaHost *lua_host = engine_get_lua_host(engine);
+    lua_host_on_init(lua_host);
 
-    // Parent: bouncing sprite at centre, 2×2 world units.
-    Entity parent = spawn_sprite(world, &hctx, c_sprite,
-                                  0.0f, 0.0f, 2.0f, 2.0f, tex);
-
-    // Give parent a velocity so it bounces.
-    Velocity parent_vel = { .dx = 3.0f, .dy = 2.0f };
-    world_add_component(world, parent, c_velocity, &parent_vel);
-
-    // Child: smaller sprite attached to parent with a local offset.
-    // Position (2.0, 1.5) is relative to parent, scale (0.5, 0.5) means
-    // half the parent's size.
-    Entity child = spawn_sprite(world, &hctx, c_sprite,
-                                 2.0f, 1.5f, 0.5f, 0.5f, tex);
-
-    // Attach child to parent.
-    hierarchy_set_parent(world, &hctx, child, parent);
-
-    // Do an initial propagation so WorldTransform is correct for frame 0.
-    hierarchy_update_transforms(world, &hctx);
-
-    printf("[demo] parent=%u  child=%u (attached)\n", parent, child);
+    // Initial transform propagation so WorldTransform is correct for frame 0.
+    HierarchyContext *hctx = engine_get_hctx(engine);
+    hierarchy_update_transforms(engine_get_world(engine), hctx);
 
     // -----------------------------------------------------------------------
     // Set up callbacks and run
@@ -308,14 +252,12 @@ int main(void) {
 
     AppState app_state = {
         .engine        = engine,
-        .renderer      = r,
-        .am            = am,
-        .world         = world,
+        .renderer      = engine_get_renderer(engine),
+        .am            = engine_get_asset_manager(engine),
+        .world         = engine_get_world(engine),
         .hctx          = hctx,
-        .cam_ctx       = cam_ctx,
-        .c_velocity    = c_velocity,
-        .c_sprite      = c_sprite,
-        .camera_entity = camera_ent,
+        .cam_ctx       = engine_get_cam_ctx(engine),
+        .lua_host      = lua_host,
         .fixed_time    = 0.0,
         .frame_time    = 0.0,
         .fixed_ticks   = 0,
@@ -343,7 +285,6 @@ int main(void) {
                clk->frame_count > 0 ? (double)clk->frame_count / clk->elapsed : 0.0);
     }
 
-    asset_manager_release(am, tex);
     engine_destroy(engine);
 
     printf("=== GameEngine shut down cleanly ===\n");

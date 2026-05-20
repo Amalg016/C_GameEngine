@@ -5,6 +5,7 @@
 #include "asset_manager.h"          // AssetManager, AssetHandle
 #include "clock.h"                  // Clock
 #include "ecs/ecs.h"                // World, Entity, ComponentId
+#include "scripting/lua_host.h"     // LuaHost
 
 #include <stdint.h>
 
@@ -88,5 +89,21 @@ World *engine_get_world(Engine *engine);
 
 /// Access the engine's platform (e.g. for framebuffer size queries).
 Platform *engine_get_platform(Engine *engine);
+
+/// Access the engine's hierarchy context.
+/// Lazily initialises on first call.
+HierarchyContext *engine_get_hctx(Engine *engine);
+
+/// Access the engine's camera context.
+/// Lazily initialises on first call.
+CameraContext *engine_get_cam_ctx(Engine *engine);
+
+/// Access the engine's Lua scripting host.
+LuaHost *engine_get_lua_host(Engine *engine);
+
+/// Convenience: load a Lua script via the engine's LuaHost.
+/// The LuaHost is created lazily on first call.
+/// Returns false if the script fails to load.
+bool engine_load_script(Engine *engine, const char *path);
 
 #endif // ENGINE_CORE_ENGINE_H

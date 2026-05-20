@@ -10,7 +10,8 @@
 # ============================================================================
 
 CC        := gcc
-CFLAGS    := -std=c23 -Wall -Wextra -Wpedantic -Ithird_party
+CFLAGS    := -std=c23 -Wall -Wextra -Wpedantic -Ithird_party \
+              $(shell pkg-config --cflags lua5.4)
 LDFLAGS   :=
 
 # --- source files ----------------------------------------------------------
@@ -23,6 +24,8 @@ SRC_ENGINE := engine/renderer/renderer.c \
               engine/core/ecs/world.c \
               engine/core/ecs/hierarchy.c \
               engine/core/ecs/camera.c \
+              engine/core/scripting/lua_host.c \
+              engine/core/scripting/lua_bindings.c \
               engine/platform/platform.c
 
 SRC_VULKAN := engine/renderer/vulkan/vulkan_renderer.c \
@@ -54,7 +57,8 @@ VULKAN_BIN  := engine_vulkan
 vulkan: shaders $(VULKAN_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $(VULKAN_BIN) $(VULKAN_SRCS) \
-		$$(pkg-config --cflags --libs glfw3) -lvulkan -lm
+		$$(pkg-config --cflags --libs glfw3) -lvulkan \
+		$$(pkg-config --libs lua5.4) -lm
 	@echo "[build] $(VULKAN_BIN) ready"
 
 # ---- OpenGL stub -----------------------------------------------------------
@@ -65,7 +69,8 @@ OPENGL_BIN  := engine_opengl
 opengl: $(OPENGL_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -DUSE_OPENGL -o $(OPENGL_BIN) $(OPENGL_SRCS) \
-		$$(pkg-config --cflags --libs glfw3) -lm
+		$$(pkg-config --cflags --libs glfw3) \
+		$$(pkg-config --libs lua5.4) -lm
 	@echo "[build] $(OPENGL_BIN) ready"
 
 # ---- Web (Emscripten) ------------------------------------------------------

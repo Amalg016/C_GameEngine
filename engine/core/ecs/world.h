@@ -101,6 +101,18 @@ bool world_has_component(const World *world, Entity entity,
 /// Returns nullptr if `comp_id` is out of range or unregistered.
 ComponentPool *world_get_pool(const World *world, ComponentId comp_id);
 
+/// Reconstruct a full Entity handle from a raw entity index.
+///
+/// During pool iteration, component_pool_get_entity() returns the raw index
+/// (without generation).  Use this helper to build a valid Entity that will
+/// pass world_entity_alive() checks.
+///
+/// Returns ENTITY_INVALID if the index is out of range.
+static inline Entity world_entity_from_index(const World *world, uint32_t index) {
+    if (world == nullptr || index >= world->entity_capacity) return ENTITY_INVALID;
+    return entity_make(index, world->generations[index]);
+}
+
 /// Destroy all entities and clear all component pool contents.
 /// Component type registrations are preserved (pools remain allocated
 /// and their element sizes unchanged).  After this call, the world has

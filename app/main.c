@@ -56,7 +56,7 @@ static void system_movement(AppState *app, double dt) {
         uint32_t ent_idx = component_pool_get_entity(vel_pool, i);
         Velocity *vel    = (Velocity *)component_pool_get_dense(vel_pool, i);
 
-        Entity ent = entity_make(ent_idx, 0);
+        Entity ent = world_entity_from_index(app->world, ent_idx);
         LocalTransform *lt = (LocalTransform *)world_get_component(
             app->world, ent, app->hctx->c_local_transform);
 
@@ -110,7 +110,7 @@ static void system_sprite_render(AppState *app, float alpha) {
         uint32_t ent_idx = component_pool_get_entity(sprite_pool, i);
         Sprite *spr      = (Sprite *)component_pool_get_dense(sprite_pool, i);
 
-        Entity ent = entity_make(ent_idx, 0);
+        Entity ent = world_entity_from_index(app->world, ent_idx);
 
         // Use world transform for the current position.
         WorldTransform *wt = (WorldTransform *)world_get_component(

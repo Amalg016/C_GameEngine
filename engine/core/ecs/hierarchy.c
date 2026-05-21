@@ -204,7 +204,7 @@ void hierarchy_update_transforms(World *world, const HierarchyContext *ctx) {
     // Only process roots (no Hierarchy, or parent == ENTITY_INVALID).
     for (uint32_t i = 0; i < lt_pool->count; ++i) {
         uint32_t ent_idx = component_pool_get_entity(lt_pool, i);
-        Entity ent = entity_make(ent_idx, 0);
+        Entity ent = world_entity_from_index(world, ent_idx);
 
         Hierarchy *h = (Hierarchy *)world_get_component(
             world, ent, ctx->c_hierarchy);
@@ -232,7 +232,7 @@ void hierarchy_snapshot_positions(World *world, const HierarchyContext *ctx) {
         uint32_t ent_idx = component_pool_get_entity(pp_pool, i);
         PreviousPosition *pp = (PreviousPosition *)component_pool_get_dense(
                                     pp_pool, i);
-        Entity ent = entity_make(ent_idx, 0);
+        Entity ent = world_entity_from_index(world, ent_idx);
 
         WorldTransform *wt = (WorldTransform *)world_get_component(
             world, ent, ctx->c_world_transform);

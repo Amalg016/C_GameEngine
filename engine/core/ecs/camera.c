@@ -32,7 +32,7 @@ void camera_update(World *world, const CameraContext *cam_ctx,
         if (!cam->is_active) continue;
 
         uint32_t ent_idx = component_pool_get_entity(cam_pool, i);
-        Entity ent = entity_make(ent_idx, 0);
+        Entity ent = world_entity_from_index(world, ent_idx);
 
         // Read the camera entity's world-space position.
         WorldTransform *wt = (WorldTransform *)world_get_component(

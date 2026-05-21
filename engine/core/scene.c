@@ -530,7 +530,7 @@ bool scene_save(Engine *engine, const char *filepath) {
 
     for (uint32_t i = 0; i < lt_pool->count; ++i) {
         uint32_t ent_idx = component_pool_get_entity(lt_pool, i);
-        Entity ent = entity_make(ent_idx, 0);
+        Entity ent = world_entity_from_index(world, ent_idx);
 
         cJSON *ent_obj = cJSON_CreateObject();
         cJSON_AddNumberToObject(ent_obj, "id", (double)ent_idx);

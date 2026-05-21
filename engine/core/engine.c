@@ -335,3 +335,23 @@ bool engine_load_script(Engine *engine, const char *path) {
 
     return lua_host_load_script(engine->lua_host, path);
 }
+
+// ---------------------------------------------------------------------------
+// Scene management convenience wrappers
+// ---------------------------------------------------------------------------
+
+bool engine_load_scene(Engine *engine, const char *filepath) {
+    if (engine == nullptr || filepath == nullptr) return false;
+
+    // Ensure hierarchy + camera contexts are initialised before loading.
+    engine_get_hctx(engine);
+    engine_get_cam_ctx(engine);
+
+    return scene_load(engine, filepath);
+}
+
+bool engine_save_scene(Engine *engine, const char *filepath) {
+    if (engine == nullptr || filepath == nullptr) return false;
+    return scene_save(engine, filepath);
+}
+

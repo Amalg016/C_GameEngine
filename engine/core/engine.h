@@ -5,6 +5,7 @@
 #include "asset_manager.h"          // AssetManager, AssetHandle
 #include "clock.h"                  // Clock
 #include "ecs/ecs.h"                // World, Entity, ComponentId
+#include "scene.h"                  // scene_load, scene_save
 #include "scripting/lua_host.h"     // LuaHost
 
 #include <stdint.h>
@@ -105,5 +106,13 @@ LuaHost *engine_get_lua_host(Engine *engine);
 /// The LuaHost is created lazily on first call.
 /// Returns false if the script fails to load.
 bool engine_load_script(Engine *engine, const char *path);
+
+/// Load a scene from a JSON file, replacing the current ECS state.
+/// Convenience wrapper around scene_load().
+bool engine_load_scene(Engine *engine, const char *filepath);
+
+/// Save the current ECS state to a JSON scene file.
+/// Convenience wrapper around scene_save().
+bool engine_save_scene(Engine *engine, const char *filepath);
 
 #endif // ENGINE_CORE_ENGINE_H

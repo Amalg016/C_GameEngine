@@ -20,6 +20,7 @@ SRC_ENGINE := engine/renderer/renderer.c \
               engine/core/engine.c \
               engine/core/asset_manager.c \
               engine/core/clock.c \
+              engine/core/scene.c \
               engine/core/ecs/component_pool.c \
               engine/core/ecs/world.c \
               engine/core/ecs/hierarchy.c \
@@ -37,7 +38,8 @@ SRC_VULKAN := engine/renderer/vulkan/vulkan_renderer.c \
 
 SRC_OPENGL := engine/renderer/opengl/opengl_renderer.c
 
-SRC_THIRD_PARTY := third_party/stb_image.c
+SRC_THIRD_PARTY := third_party/stb_image.c \
+                   third_party/cJSON.c
 
 SRC_APP    := app/main.c
 

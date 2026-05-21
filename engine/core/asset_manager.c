@@ -270,3 +270,15 @@ uint32_t asset_manager_get_ref_count(AssetManager *am, AssetHandle handle) {
     if (idx >= am->capacity) return 0;
     return am->entries[idx].ref_count;
 }
+
+const char *asset_manager_get_path(const AssetManager *am, AssetHandle handle) {
+    if (am == nullptr || handle == ASSET_HANDLE_INVALID) return nullptr;
+
+    // Linear scan — mirrors find_by_handle() but accepts const.
+    for (uint32_t i = 0; i < am->capacity; ++i) {
+        if (am->entries[i].handle == handle && am->entries[i].path[0] != '\0') {
+            return am->entries[i].path;
+        }
+    }
+    return nullptr;
+}

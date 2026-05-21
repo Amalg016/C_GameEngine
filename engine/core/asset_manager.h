@@ -77,4 +77,8 @@ void *asset_manager_get_data(AssetManager *am, AssetHandle handle);
 /// Get the current reference count for a handle (for debugging).
 uint32_t asset_manager_get_ref_count(AssetManager *am, AssetHandle handle);
 
+/// Get the file path associated with a loaded asset handle.
+/// Returns nullptr for invalid or expired handles.
+const char *asset_manager_get_path(const AssetManager *am, AssetHandle handle);
+
 #endif // ENGINE_ASSET_MANAGER_H

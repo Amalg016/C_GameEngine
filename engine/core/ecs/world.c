@@ -229,3 +229,30 @@ ComponentPool *world_get_pool(const World *world, ComponentId comp_id) {
     if (comp_id >= world->registered_count) return nullptr;
     return world->pools[comp_id];
 }
+
+// ---------------------------------------------------------------------------
+// world_clear — flush all entities, keep component registrations.
+// ---------------------------------------------------------------------------
+
+void world_clear(World *world) {
+    if (world == nullptr) return;
+
+    // Clear every component pool (preserves allocation + element size).
+    for (uint8_t i = 0; i < world->registered_count; ++i) {
+        component_pool_clear(world->pools[i]);
+    }
+
+    // Bump every generation so that any outstanding Entity handles become
+    // stale.  This is cheaper than tracking which indices were live.
+    for (uint32_t i = 0; i < world->entity_capacity; ++i) {
+        world->generations[i] = (world->generations[i] + 1)
+                              & ECS_GENERATION_MASK;
+    }
+
+    // Reset the free list — all slots are effectively reclaimed by resetting
+    // next_index.  (We don't need to push them individually.)
+    world->free_count = 0;
+    world->next_index = 1;  // slot 0 remains reserved (ENTITY_INVALID)
+
+    printf("[ecs] world cleared (component registrations preserved)\n");
+}

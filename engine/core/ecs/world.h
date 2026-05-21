@@ -101,4 +101,10 @@ bool world_has_component(const World *world, Entity entity,
 /// Returns nullptr if `comp_id` is out of range or unregistered.
 ComponentPool *world_get_pool(const World *world, ComponentId comp_id);
 
+/// Destroy all entities and clear all component pool contents.
+/// Component type registrations are preserved (pools remain allocated
+/// and their element sizes unchanged).  After this call, the world has
+/// zero live entities.  Existing Entity handles are invalidated.
+void world_clear(World *world);
+
 #endif // ENGINE_CORE_ECS_WORLD_H

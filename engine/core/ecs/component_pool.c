@@ -170,3 +170,14 @@ bool component_pool_has(const ComponentPool *pool, Entity entity) {
     uint32_t dense_idx = pool->sparse[idx];
     return dense_idx < pool->count && pool->dense_ids[dense_idx] == idx;
 }
+
+void component_pool_clear(ComponentPool *pool) {
+    if (pool == nullptr) return;
+
+    pool->count = 0;
+
+    // Reset the entire sparse array to "no component".
+    for (uint32_t i = 0; i < pool->sparse_size; ++i) {
+        pool->sparse[i] = SPARSE_EMPTY;
+    }
+}

@@ -53,6 +53,10 @@ void *component_pool_get(const ComponentPool *pool, Entity entity);
 /// Returns true if `entity` has a component in this pool.
 bool component_pool_has(const ComponentPool *pool, Entity entity);
 
+/// Remove all components from the pool, resetting it to empty.
+/// The pool's element_size and allocated memory are preserved.
+void component_pool_clear(ComponentPool *pool);
+
 // --- Dense-array access (for iteration) ------------------------------------
 
 /// Get a pointer to the component at dense index `i`.

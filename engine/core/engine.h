@@ -111,8 +111,23 @@ bool engine_load_script(Engine *engine, const char *path);
 /// Convenience wrapper around scene_load().
 bool engine_load_scene(Engine *engine, const char *filepath);
 
+/// Unload the current scene, releasing all asset references and clearing
+/// the ECS.  Safe to call even if no scene is loaded.
+/// Convenience wrapper around scene_unload().
+void engine_unload_scene(Engine *engine);
+
+/// Switch from the current scene to a new one.
+/// Unloads the current scene (releasing assets), then loads the new one.
+/// This is the primary API for scene transitions at runtime.
+/// Returns true on success, false on file/parse errors.
+bool engine_switch_scene(Engine *engine, const char *filepath);
+
 /// Save the current ECS state to a JSON scene file.
 /// Convenience wrapper around scene_save().
 bool engine_save_scene(Engine *engine, const char *filepath);
+
+/// Get the filepath of the currently loaded scene.
+/// Returns nullptr if no scene has been loaded.
+const char *engine_get_current_scene(const Engine *engine);
 
 #endif // ENGINE_CORE_ENGINE_H

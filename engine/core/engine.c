@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // ---------------------------------------------------------------------------
 // Adapter functions for the asset manager callbacks.
@@ -42,6 +43,7 @@ struct Engine {
     CameraContext     cam_ctx;        // stored here so LuaHost can reference
     Clock             clock;
     EngineCallbacks   callbacks;
+    char             *current_scene;    // filepath of the currently loaded scene
     double            fixed_hz;         // fixed update rate in Hz
     bool              renderer_alive;   // true between engine_init and shutdown
     bool              hctx_inited;      // true after hierarchy_init()
@@ -247,11 +249,19 @@ void engine_destroy(Engine *engine) {
         engine->renderer_alive = false;
     }
 
+    // Unload the current scene first — releases asset references held by
+    // Sprite components so the AssetManager can free GPU resources cleanly.
+    scene_unload(engine);
+
     // Lua host must be destroyed before the world (it holds World pointers).
     if (engine->lua_host != nullptr) {
         lua_host_destroy(engine->lua_host);
         engine->lua_host = nullptr;
     }
+
+    // Scene name.
+    free(engine->current_scene);
+    engine->current_scene = nullptr;
 
     // ECS world must be destroyed before asset manager / renderer.
     world_destroy(engine->world);
@@ -360,12 +370,18 @@ bool engine_load_scene(Engine *engine, const char *filepath) {
         if (engine->lua_host == nullptr) {
             fprintf(stderr, "[engine] warning: failed to create LuaHost "
                     "for scene loading\n");
-            // Non-fatal — scene_load will still work, but Sprite/Velocity
-            // components won't be accessible from the app render system.
         }
     }
+    // Unload any existing scene before loading the new one.
+    scene_unload(engine);
 
-    return scene_load(engine, filepath);
+    if (!scene_load(engine, filepath)) return false;
+
+    // Track the currently loaded scene.
+    free(engine->current_scene);
+    engine->current_scene = strdup(filepath);
+
+    return true;
 }
 
 bool engine_save_scene(Engine *engine, const char *filepath) {
@@ -373,3 +389,41 @@ bool engine_save_scene(Engine *engine, const char *filepath) {
     return scene_save(engine, filepath);
 }
 
+void engine_unload_scene(Engine *engine) {
+    if (engine == nullptr) return;
+    scene_unload(engine);
+
+    free(engine->current_scene);
+    engine->current_scene = nullptr;
+}
+
+bool engine_switch_scene(Engine *engine, const char *filepath) {
+    if (engine == nullptr || filepath == nullptr) return false;
+
+    // Ensure subsystems are ready (same as engine_load_scene).
+    engine_get_hctx(engine);
+    engine_get_cam_ctx(engine);
+
+    if (engine->lua_host == nullptr) {
+        engine->lua_host = lua_host_create(
+            engine->world, &engine->hctx, &engine->cam_ctx,
+            engine->asset_manager, &engine->renderer);
+    }
+
+    if (!scene_switch(engine, filepath)) {
+        // The old scene was unloaded but the new one failed.
+        free(engine->current_scene);
+        engine->current_scene = nullptr;
+        return false;
+    }
+
+    // Track the new scene.
+    free(engine->current_scene);
+    engine->current_scene = strdup(filepath);
+
+    return true;
+}
+
+const char *engine_get_current_scene(const Engine *engine) {
+    return engine != nullptr ? engine->current_scene : nullptr;
+}

@@ -32,7 +32,7 @@ typedef struct Engine Engine;
 /// Load a scene from a JSON file, replacing the current ECS state.
 ///
 /// Performs these steps in order:
-///   1. Safety flush — clears all entities and component data.
+///   1. Unloads the current scene (via scene_unload).
 ///   2. Asset pre-loading — loads textures referenced in the scene.
 ///   3. Entity instantiation — creates entities and populates components.
 ///   4. Hierarchy re-linking — resolves parent/child relationships using
@@ -41,6 +41,26 @@ typedef struct Engine Engine;
 ///
 /// Returns true on success, false on file/parse errors.
 bool scene_load(Engine *engine, const char *filepath);
+
+/// Unload the current scene, releasing all resources.
+///
+/// Performs these steps:
+///   1. Releases all asset references held by Sprite components so the
+///      AssetManager can free GPU resources (ref-count → 0 = freed).
+///   2. Clears all entities and component data via world_clear().
+///
+/// After this call the ECS World is empty but the component type
+/// registrations are preserved.  Safe to call even if no scene is loaded.
+void scene_unload(Engine *engine);
+
+/// Switch from the current scene to a new one.
+///
+/// Equivalent to scene_unload() followed by scene_load(), but expressed
+/// as a single atomic operation for clarity at call sites.
+///
+/// Returns true on success, false on file/parse errors (the old scene
+/// will have been unloaded regardless).
+bool scene_switch(Engine *engine, const char *filepath);
 
 /// Save the current ECS state to a JSON scene file.
 ///

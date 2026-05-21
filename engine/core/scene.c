@@ -166,6 +166,55 @@ static void texmap_insert(TexMap *map, const char *path, AssetHandle handle) {
 }
 
 // ===========================================================================
+// scene_unload
+// ===========================================================================
+
+void scene_unload(Engine *engine) {
+    if (engine == nullptr) return;
+
+    World        *world = engine_get_world(engine);
+    AssetManager *am    = engine_get_asset_manager(engine);
+    LuaHost      *lua   = engine_get_lua_host(engine);
+
+    if (world == nullptr) return;
+
+    // Release all asset references held by Sprite components so the
+    // AssetManager can free GPU resources (ref-count → 0 = freed).
+    if (lua != nullptr && lua_host_sprite_registered(lua)) {
+        ComponentId c_spr = lua_host_get_sprite_id(lua);
+        ComponentPool *spr_pool = world_get_pool(world, c_spr);
+        if (spr_pool != nullptr && spr_pool->count > 0) {
+            for (uint32_t i = 0; i < spr_pool->count; ++i) {
+                SceneSprite *spr = (SceneSprite *)component_pool_get_dense(
+                    spr_pool, i);
+                if (spr->texture != ASSET_HANDLE_INVALID) {
+                    asset_manager_release(am, spr->texture);
+                }
+            }
+            printf("[scene] released %u sprite asset reference(s)\n",
+                   spr_pool->count);
+        }
+    }
+
+    // Clear all entities and component data.  Pool registrations are
+    // preserved so the same ComponentIds remain valid.
+    world_clear(world);
+    printf("[scene] unloaded\n");
+}
+
+// ===========================================================================
+// scene_switch
+// ===========================================================================
+
+bool scene_switch(Engine *engine, const char *filepath) {
+    if (engine == nullptr || filepath == nullptr) return false;
+
+    printf("[scene] switching to: %s\n", filepath);
+    scene_unload(engine);
+    return scene_load(engine, filepath);
+}
+
+// ===========================================================================
 // scene_load
 // ===========================================================================
 
@@ -200,11 +249,7 @@ bool scene_load(Engine *engine, const char *filepath) {
         return false;
     }
 
-    // --- 1. Safety flush --------------------------------------------------
-    world_clear(world);
-    printf("[scene] ECS state cleared\n");
-
-    // --- 2. Asset pre-loading ---------------------------------------------
+    // --- 1. Asset pre-loading ---------------------------------------------
     TexMap texmap = {0};
 
     cJSON *assets = cJSON_GetObjectItemCaseSensitive(root, "assets");

@@ -229,22 +229,39 @@ int main(void) {
     }
 
     // -----------------------------------------------------------------------
-    // Load the Lua demo script — this sets up the entire scene.
+    // Scene setup — choose ONE of the two paths below.
     // -----------------------------------------------------------------------
 
-    if (!engine_load_script(engine, "scripts/demo.lua")) {
-        fprintf(stderr, "failed to load Lua script\n");
+    // // --- Path A: Load scene from Lua script (current default) --------------
+    // if (!engine_load_script(engine, "scripts/demo.lua")) {
+    //     fprintf(stderr, "failed to load Lua script\n");
+    //     engine_destroy(engine);
+    //     return EXIT_FAILURE;
+    // }
+
+    // // Call Lua on_init() to spawn entities.
+    // LuaHost *lua_host = engine_get_lua_host(engine);
+    // lua_host_on_init(lua_host);
+
+    // // Initial transform propagation so WorldTransform is correct for frame 0.
+    // HierarchyContext *hctx = engine_get_hctx(engine);
+    // hierarchy_update_transforms(engine_get_world(engine), hctx);
+
+    // Save the current scene to JSON (demonstrates the serializer).
+    // engine_save_scene(engine, "scenes/demo_saved.json");
+
+    // --- Path B: Load scene directly from JSON (uncomment to use) ----------
+    // To use JSON scenes instead of Lua, comment out Path A above and
+    // uncomment the following:
+    //
+    HierarchyContext *hctx = engine_get_hctx(engine);
+    if (!engine_load_scene(engine, "scenes/demo.json")) {
+        fprintf(stderr, "failed to load scene\n");
         engine_destroy(engine);
         return EXIT_FAILURE;
     }
-
-    // Call Lua on_init() to spawn entities.
     LuaHost *lua_host = engine_get_lua_host(engine);
-    lua_host_on_init(lua_host);
-
-    // Initial transform propagation so WorldTransform is correct for frame 0.
-    HierarchyContext *hctx = engine_get_hctx(engine);
-    hierarchy_update_transforms(engine_get_world(engine), hctx);
+    
 
     // -----------------------------------------------------------------------
     // Set up callbacks and run

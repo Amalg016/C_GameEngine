@@ -347,6 +347,24 @@ bool engine_load_scene(Engine *engine, const char *filepath) {
     engine_get_hctx(engine);
     engine_get_cam_ctx(engine);
 
+    // The sprite render and movement systems in the app layer query the
+    // LuaHost for Sprite/Velocity ComponentIds.  If no Lua script has been
+    // loaded yet, the LuaHost won't exist and those systems silently skip
+    // rendering.  Create it here so scene_load() can register the component
+    // types on it and the app-level systems can find them.
+    if (engine->lua_host == nullptr) {
+        engine->lua_host = lua_host_create(
+            engine->world, &engine->hctx, &engine->cam_ctx,
+            engine->asset_manager, &engine->renderer);
+
+        if (engine->lua_host == nullptr) {
+            fprintf(stderr, "[engine] warning: failed to create LuaHost "
+                    "for scene loading\n");
+            // Non-fatal — scene_load will still work, but Sprite/Velocity
+            // components won't be accessible from the app render system.
+        }
+    }
+
     return scene_load(engine, filepath);
 }
 

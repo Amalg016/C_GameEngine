@@ -6,6 +6,7 @@
 #include "../../renderer/renderer.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 // ---------------------------------------------------------------------------
 // LuaHost — owns the Lua VM and provides the bridge between C and Lua.
@@ -32,6 +33,30 @@
 /// Opaque handle — internals are hidden.
 typedef struct LuaHost LuaHost;
 
+// ---------------------------------------------------------------------------
+// Script Component — per-entity Lua script attachments.
+//
+// Each entity can have up to MAX_SCRIPTS_PER_ENTITY scripts attached.
+// Each script file returns a module table; per-entity instances inherit
+// from the module via __index and hold their own state on `self`.
+// ---------------------------------------------------------------------------
+
+#define SCRIPT_PATH_MAX         256
+#define MAX_SCRIPTS_PER_ENTITY  8
+
+/// A single script attachment slot.
+typedef struct ScriptSlot {
+    char path[SCRIPT_PATH_MAX];   // path to the .lua file (for serialization)
+    int  instance_ref;            // Lua registry ref to the per-entity instance
+    bool initialized;             // true after on_init() has been called
+} ScriptSlot;
+
+/// ECS component: holds all scripts attached to an entity.
+typedef struct ScriptComponent {
+    ScriptSlot slots[MAX_SCRIPTS_PER_ENTITY];
+    uint8_t    count;             // number of scripts attached (0..8)
+} ScriptComponent;
+
 // --- Lifecycle -------------------------------------------------------------
 
 /// Create a new LuaHost.  Opens the Lua VM and registers C bindings.
@@ -49,7 +74,7 @@ bool lua_host_load_script(LuaHost *host, const char *path);
 /// Close the Lua VM and free all associated memory.
 void lua_host_destroy(LuaHost *host);
 
-// --- Per-frame hooks -------------------------------------------------------
+// --- Per-frame hooks (global Lua functions) --------------------------------
 // Each of these calls the corresponding global Lua function if it exists.
 // Errors are caught and printed to stderr; they never propagate to the caller.
 
@@ -64,5 +89,38 @@ void lua_host_on_update(LuaHost *host, double dt);
 
 /// Call Lua `on_render(alpha)`.  Inside begin/end frame.
 void lua_host_on_render(LuaHost *host, double alpha);
+
+// --- Script Component System -----------------------------------------------
+// Per-entity Lua scripts with lifecycle callbacks (on_init, on_update, etc.).
+
+/// Get the ScriptComponent's ComponentId (lazily registers on first call).
+ComponentId lua_host_get_script_id(LuaHost *host);
+bool        lua_host_script_registered(LuaHost *host);
+
+/// Attach a Lua script to an entity.  Loads the module (if not cached),
+/// creates a per-entity instance table, and appends it to the entity's
+/// ScriptComponent slot array.  Returns false if the slot limit is reached
+/// or the script fails to load.
+bool lua_host_attach_script(LuaHost *host, Entity entity,
+                            const char *script_path);
+
+/// Detach a specific Lua script from an entity by path.  Calls on_destroy()
+/// if defined, releases the Lua registry reference, and compacts the slot
+/// array.  If path is nullptr, detaches ALL scripts from the entity.
+void lua_host_detach_script(LuaHost *host, Entity entity,
+                            const char *script_path);
+
+/// Call on_init() on all script instances that haven't been initialized yet.
+void lua_host_scripts_init(LuaHost *host);
+
+/// Call on_update(dt) on all script instances.
+void lua_host_scripts_update(LuaHost *host, double dt);
+
+/// Call on_fixed_update(dt) on all script instances.
+void lua_host_scripts_fixed_update(LuaHost *host, double dt);
+
+/// Release all script instance Lua references (for scene unload).
+/// Does NOT remove the ScriptComponent from the pool — world_clear() does that.
+void lua_host_scripts_clear(LuaHost *host);
 
 #endif // ENGINE_CORE_SCRIPTING_LUA_HOST_H

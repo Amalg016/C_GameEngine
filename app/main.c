@@ -167,6 +167,9 @@ static void on_fixed_update(void *user_data, double dt) {
     // 5. Lua fixed update hook.
     lua_host_on_fixed_update(app->lua_host, dt);
 
+    // 6. Per-entity script fixed update.
+    lua_host_scripts_fixed_update(app->lua_host, dt);
+
     // Throttled diagnostic.
     if (app->fixed_ticks % 60 == 0) {
         printf("[demo] sim=%.2fs\n", app->fixed_time);
@@ -180,6 +183,9 @@ static void on_update(void *user_data, double dt) {
 
     // Lua per-frame update hook.
     lua_host_on_update(app->lua_host, dt);
+
+    // Per-entity script update.
+    lua_host_scripts_update(app->lua_host, dt);
 }
 
 /// Called once per frame, inside begin/end frame.

@@ -298,6 +298,34 @@ static int l_set_camera_perspective(lua_State *L) {
 }
 
 // ---------------------------------------------------------------------------
+// engine.add_script(entity_id, path)
+// ---------------------------------------------------------------------------
+
+static int l_add_script(lua_State *L) {
+    LuaHost *host = get_host(L);
+    Entity e      = (Entity)luaL_checkinteger(L, 1);
+    const char *path = luaL_checkstring(L, 2);
+
+    if (!lua_host_attach_script(host, e, path)) {
+        return luaL_error(L, "engine.add_script: failed to attach '%s'", path);
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// engine.remove_script(entity_id, path)
+// ---------------------------------------------------------------------------
+
+static int l_remove_script(lua_State *L) {
+    LuaHost *host = get_host(L);
+    Entity e      = (Entity)luaL_checkinteger(L, 1);
+    const char *path = lua_isstring(L, 2) ? lua_tostring(L, 2) : nullptr;
+
+    lua_host_detach_script(host, e, path);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
 // Registration table
 // ---------------------------------------------------------------------------
 
@@ -313,6 +341,8 @@ static const luaL_Reg engine_funcs[] = {
     { "set_velocity",           l_set_velocity          },
     { "set_camera_ortho",       l_set_camera_ortho      },
     { "set_camera_perspective", l_set_camera_perspective },
+    { "add_script",             l_add_script            },
+    { "remove_script",          l_remove_script         },
     { nullptr,                  nullptr                 },
 };
 

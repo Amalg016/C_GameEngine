@@ -196,6 +196,11 @@ void scene_unload(Engine *engine) {
         }
     }
 
+    // Release all Lua script instance references (calls on_destroy on each).
+    if (lua != nullptr) {
+        lua_host_scripts_clear(lua);
+    }
+
     // Clear all entities and component data.  Pool registrations are
     // preserved so the same ComponentIds remain valid.
     world_clear(world);
@@ -448,6 +453,20 @@ bool scene_load(Engine *engine, const char *filepath) {
                 };
                 world_add_component(world, live, c_velocity, &vel);
             }
+
+            // -- scripts ---------------------------------------------------------
+            cJSON *scripts_json = cJSON_GetObjectItemCaseSensitive(comps, "scripts");
+            if (cJSON_IsArray(scripts_json) && lua != nullptr) {
+                cJSON *script_entry = nullptr;
+                cJSON_ArrayForEach(script_entry, scripts_json) {
+                    cJSON *path_item = cJSON_GetObjectItemCaseSensitive(
+                        script_entry, "path");
+                    if (cJSON_IsString(path_item)) {
+                        lua_host_attach_script(lua, live,
+                                              path_item->valuestring);
+                    }
+                }
+            }
         }
     }
 
@@ -469,6 +488,11 @@ bool scene_load(Engine *engine, const char *filepath) {
 
     // --- 6. Initial transform propagation ---------------------------------
     hierarchy_update_transforms(world, hctx);
+
+    // --- 7. Initialize script instances -----------------------------------
+    if (lua != nullptr) {
+        lua_host_scripts_init(lua);
+    }
 
     // --- Cleanup ----------------------------------------------------------
     free(parent_links);
@@ -501,11 +525,13 @@ bool scene_save(Engine *engine, const char *filepath) {
         return false;
     }
 
-    // Sprite / Velocity component IDs (may not be registered).
+    // Sprite / Velocity / Script component IDs (may not be registered).
     bool has_sprite   = (lua != nullptr && lua_host_sprite_registered(lua));
     bool has_velocity = (lua != nullptr && lua_host_velocity_registered(lua));
+    bool has_script   = (lua != nullptr && lua_host_script_registered(lua));
     ComponentId c_sprite   = has_sprite   ? lua_host_get_sprite_id(lua)   : UINT8_MAX;
     ComponentId c_velocity = has_velocity ? lua_host_get_velocity_id(lua) : UINT8_MAX;
+    ComponentId c_script   = has_script   ? lua_host_get_script_id(lua)   : UINT8_MAX;
 
     // --- Build JSON tree --------------------------------------------------
     cJSON *root = cJSON_CreateObject();
@@ -635,6 +661,21 @@ bool scene_save(Engine *engine, const char *filepath) {
                 cJSON *vel_obj = cJSON_AddObjectToObject(comps, "velocity");
                 cJSON_AddNumberToObject(vel_obj, "dx", (double)vel->dx);
                 cJSON_AddNumberToObject(vel_obj, "dy", (double)vel->dy);
+            }
+        }
+
+        // -- scripts ---------------------------------------------------------
+        if (has_script && c_script != UINT8_MAX) {
+            ScriptComponent *sc = (ScriptComponent *)world_get_component(
+                world, ent, c_script);
+            if (sc != nullptr && sc->count > 0) {
+                cJSON *scripts_arr = cJSON_AddArrayToObject(comps, "scripts");
+                for (uint8_t s = 0; s < sc->count; ++s) {
+                    cJSON *entry = cJSON_CreateObject();
+                    cJSON_AddStringToObject(entry, "path",
+                                           sc->slots[s].path);
+                    cJSON_AddItemToArray(scripts_arr, entry);
+                }
             }
         }
 

@@ -1,41 +1,40 @@
 -- scripts/player_controller.lua
 --
--- Per-entity script component: bounces the entity off world-space edges.
--- Replaces the hardcoded C-side system_movement() for script-driven entities.
+-- Per-entity script component: WASD keyboard movement.
+-- Demonstrates the engine's input system.
 
 local PlayerController = {}
 
 function PlayerController:on_init()
-    self.speed_x = 3.0
-    self.speed_y = 2.0
+    self.speed = 5.0
     self.bound = 5.0
-    engine.log("[PlayerController] ready on entity " .. self.entity)
+    engine.log("[PlayerController] ready on entity " .. self.entity
+               .. " — use WASD to move")
 end
 
-function PlayerController:on_fixed_update(dt)
+function PlayerController:on_update(dt)
     local x, y, sx, sy = engine.get_transform(self.entity)
 
-    x = x + self.speed_x * dt
-    y = y + self.speed_y * dt
+    -- WASD movement.
+    if engine.is_key_down(engine.key.W) or engine.is_key_down(engine.key.UP) then
+        y = y - self.speed * dt
+    end
+    if engine.is_key_down(engine.key.S) or engine.is_key_down(engine.key.DOWN) then
+        y = y + self.speed * dt
+    end
+    if engine.is_key_down(engine.key.A) or engine.is_key_down(engine.key.LEFT) then
+        x = x - self.speed * dt
+    end
+    if engine.is_key_down(engine.key.D) or engine.is_key_down(engine.key.RIGHT) then
+        x = x + self.speed * dt
+    end
 
-    -- Bounce off world-space edges.
+    -- Clamp to world bounds.
     local hw, hh = sx * 0.5, sy * 0.5
-
-    if x + hw > self.bound then
-        x = self.bound - hw
-        self.speed_x = -self.speed_x
-    elseif x - hw < -self.bound then
-        x = -self.bound + hw
-        self.speed_x = -self.speed_x
-    end
-
-    if y + hh > self.bound then
-        y = self.bound - hh
-        self.speed_y = -self.speed_y
-    elseif y - hh < -self.bound then
-        y = -self.bound + hh
-        self.speed_y = -self.speed_y
-    end
+    if x + hw > self.bound then x = self.bound - hw end
+    if x - hw < -self.bound then x = -self.bound + hw end
+    if y + hh > self.bound then y = self.bound - hh end
+    if y - hh < -self.bound then y = -self.bound + hh end
 
     engine.set_transform(self.entity, x, y, sx, sy)
 end

@@ -1,5 +1,6 @@
 #include "lua_host.h"
 #include "lua_bindings.h"
+#include "../input.h"
 
 #include <lua5.4/lua.h>
 #include <lua5.4/lauxlib.h>
@@ -20,6 +21,7 @@ struct LuaHost {
     CameraContext    *cam_ctx;
     AssetManager     *am;
     Renderer         *renderer;
+    Input            *input;
 
     // Lazy-registered component IDs for Lua-created component types.
     ComponentId       c_velocity;
@@ -40,6 +42,7 @@ HierarchyContext *lua_host_get_hctx(LuaHost *h)           { return h->hctx; }
 CameraContext    *lua_host_get_cam_ctx(LuaHost *h)         { return h->cam_ctx; }
 AssetManager     *lua_host_get_asset_manager(LuaHost *h)   { return h->am; }
 Renderer         *lua_host_get_renderer(LuaHost *h)        { return h->renderer; }
+Input            *lua_host_get_input(LuaHost *h)            { return h->input; }
 
 ComponentId lua_host_get_velocity_id(LuaHost *h)           { return h->c_velocity; }
 void        lua_host_set_velocity_id(LuaHost *h, ComponentId id) {
@@ -237,7 +240,8 @@ LuaHost *lua_host_create(World            *world,
                          HierarchyContext *hctx,
                          CameraContext    *cam_ctx,
                          AssetManager     *am,
-                         Renderer         *renderer) {
+                         Renderer         *renderer,
+                         Input            *input) {
     if (world == nullptr) {
         fprintf(stderr, "[lua] null world\n");
         return nullptr;
@@ -254,6 +258,7 @@ LuaHost *lua_host_create(World            *world,
     host->cam_ctx  = cam_ctx;
     host->am       = am;
     host->renderer = renderer;
+    host->input    = input;
 
     // Open Lua VM.
     host->L = luaL_newstate();

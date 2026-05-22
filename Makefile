@@ -20,6 +20,7 @@ SRC_ENGINE := engine/renderer/renderer.c \
               engine/core/engine.c \
               engine/core/asset_manager.c \
               engine/core/clock.c \
+              engine/core/input.c \
               engine/core/scene.c \
               engine/core/ecs/component_pool.c \
               engine/core/ecs/world.c \

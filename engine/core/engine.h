@@ -5,6 +5,7 @@
 #include "asset_manager.h"          // AssetManager, AssetHandle
 #include "clock.h"                  // Clock
 #include "ecs/ecs.h"                // World, Entity, ComponentId
+#include "input.h"                  // Input
 #include "scene.h"                  // scene_load, scene_save
 #include "scripting/lua_host.h"     // LuaHost
 
@@ -90,6 +91,10 @@ World *engine_get_world(Engine *engine);
 
 /// Access the engine's platform (e.g. for framebuffer size queries).
 Platform *engine_get_platform(Engine *engine);
+
+/// Access the engine's input state (keyboard, mouse, scroll).
+/// Valid after engine_create().  Updated each frame by engine_run().
+Input *engine_get_input(Engine *engine);
 
 /// Access the engine's hierarchy context.
 /// Lazily initialises on first call.

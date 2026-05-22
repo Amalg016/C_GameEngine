@@ -8,6 +8,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// Forward declarations.
+typedef struct Input Input;
+
 // ---------------------------------------------------------------------------
 // LuaHost — owns the Lua VM and provides the bridge between C and Lua.
 //
@@ -65,7 +68,8 @@ LuaHost *lua_host_create(World            *world,
                          HierarchyContext *hctx,
                          CameraContext    *cam_ctx,
                          AssetManager     *am,
-                         Renderer         *renderer);
+                         Renderer         *renderer,
+                         Input            *input);
 
 /// Execute a Lua script file (e.g. "scripts/demo.lua").
 /// Returns false if the file cannot be loaded or a parse/runtime error occurs.

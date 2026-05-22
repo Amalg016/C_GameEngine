@@ -3,6 +3,7 @@
 
 #include "../ecs/ecs.h"
 #include "../asset_manager.h"
+#include "../input.h"
 #include "../../renderer/renderer.h"
 
 #include <lua5.4/lua.h>
@@ -32,6 +33,7 @@ extern ComponentId       lua_host_get_sprite_id(LuaHost *host);
 extern void              lua_host_set_sprite_id(LuaHost *host, ComponentId id);
 extern bool              lua_host_velocity_registered(LuaHost *host);
 extern bool              lua_host_sprite_registered(LuaHost *host);
+extern Input            *lua_host_get_input(LuaHost *host);
 
 // ---------------------------------------------------------------------------
 // Helper — retrieve the LuaHost* from the first upvalue.
@@ -326,6 +328,89 @@ static int l_remove_script(lua_State *L) {
 }
 
 // ---------------------------------------------------------------------------
+// Input bindings
+// ---------------------------------------------------------------------------
+
+/// engine.is_key_down(keycode) → boolean
+static int l_is_key_down(lua_State *L) {
+    Input *input = lua_host_get_input(get_host(L));
+    int key = (int)luaL_checkinteger(L, 1);
+    lua_pushboolean(L, input != nullptr && input_key_down(input, key));
+    return 1;
+}
+
+/// engine.is_key_pressed(keycode) → boolean
+static int l_is_key_pressed(lua_State *L) {
+    Input *input = lua_host_get_input(get_host(L));
+    int key = (int)luaL_checkinteger(L, 1);
+    lua_pushboolean(L, input != nullptr && input_key_pressed(input, key));
+    return 1;
+}
+
+/// engine.is_key_released(keycode) → boolean
+static int l_is_key_released(lua_State *L) {
+    Input *input = lua_host_get_input(get_host(L));
+    int key = (int)luaL_checkinteger(L, 1);
+    lua_pushboolean(L, input != nullptr && input_key_released(input, key));
+    return 1;
+}
+
+/// engine.is_button_down(button) → boolean
+static int l_is_button_down(lua_State *L) {
+    Input *input = lua_host_get_input(get_host(L));
+    int btn = (int)luaL_checkinteger(L, 1);
+    lua_pushboolean(L, input != nullptr && input_button_down(input, btn));
+    return 1;
+}
+
+/// engine.is_button_pressed(button) → boolean
+static int l_is_button_pressed(lua_State *L) {
+    Input *input = lua_host_get_input(get_host(L));
+    int btn = (int)luaL_checkinteger(L, 1);
+    lua_pushboolean(L, input != nullptr && input_button_pressed(input, btn));
+    return 1;
+}
+
+/// engine.get_mouse_pos() → x, y
+static int l_get_mouse_pos(lua_State *L) {
+    Input *input = lua_host_get_input(get_host(L));
+    if (input == nullptr) {
+        lua_pushnumber(L, 0);
+        lua_pushnumber(L, 0);
+    } else {
+        lua_pushnumber(L, input->mouse_x);
+        lua_pushnumber(L, input->mouse_y);
+    }
+    return 2;
+}
+
+/// engine.get_mouse_delta() → dx, dy
+static int l_get_mouse_delta(lua_State *L) {
+    Input *input = lua_host_get_input(get_host(L));
+    if (input == nullptr) {
+        lua_pushnumber(L, 0);
+        lua_pushnumber(L, 0);
+    } else {
+        lua_pushnumber(L, input->mouse_dx);
+        lua_pushnumber(L, input->mouse_dy);
+    }
+    return 2;
+}
+
+/// engine.get_scroll_delta() → dx, dy
+static int l_get_scroll_delta(lua_State *L) {
+    Input *input = lua_host_get_input(get_host(L));
+    if (input == nullptr) {
+        lua_pushnumber(L, 0);
+        lua_pushnumber(L, 0);
+    } else {
+        lua_pushnumber(L, input->scroll_dx);
+        lua_pushnumber(L, input->scroll_dy);
+    }
+    return 2;
+}
+
+// ---------------------------------------------------------------------------
 // Registration table
 // ---------------------------------------------------------------------------
 
@@ -343,6 +428,14 @@ static const luaL_Reg engine_funcs[] = {
     { "set_camera_perspective", l_set_camera_perspective },
     { "add_script",             l_add_script            },
     { "remove_script",          l_remove_script         },
+    { "is_key_down",            l_is_key_down           },
+    { "is_key_pressed",         l_is_key_pressed        },
+    { "is_key_released",        l_is_key_released       },
+    { "is_button_down",         l_is_button_down        },
+    { "is_button_pressed",      l_is_button_pressed     },
+    { "get_mouse_pos",          l_get_mouse_pos         },
+    { "get_mouse_delta",        l_get_mouse_delta       },
+    { "get_scroll_delta",       l_get_scroll_delta      },
     { nullptr,                  nullptr                 },
 };
 
@@ -359,6 +452,47 @@ void lua_register_engine_bindings(lua_State *L, LuaHost *host) {
         lua_pushcclosure(L, fn->func, 1);        // closure(fn, host)
         lua_setfield(L, -2, fn->name);           // engine[name] = closure
     }
+
+    // Register key constants as engine.key.*
+    // Allows Lua scripts to write:  engine.is_key_down(engine.key.W)
+    lua_newtable(L);  // engine.key
+    struct { const char *name; int value; } key_constants[] = {
+        { "SPACE",      32  }, { "APOSTROPHE", 39  },
+        { "COMMA",      44  }, { "MINUS",      45  },
+        { "PERIOD",     46  }, { "SLASH",      47  },
+        { "_0", 48 }, { "_1", 49 }, { "_2", 50 }, { "_3", 51 }, { "_4", 52 },
+        { "_5", 53 }, { "_6", 54 }, { "_7", 55 }, { "_8", 56 }, { "_9", 57 },
+        { "A", 65 }, { "B", 66 }, { "C", 67 }, { "D", 68 }, { "E", 69 },
+        { "F", 70 }, { "G", 71 }, { "H", 72 }, { "I", 73 }, { "J", 74 },
+        { "K", 75 }, { "L", 76 }, { "M", 77 }, { "N", 78 }, { "O", 79 },
+        { "P", 80 }, { "Q", 81 }, { "R", 82 }, { "S", 83 }, { "T", 84 },
+        { "U", 85 }, { "V", 86 }, { "W", 87 }, { "X", 88 }, { "Y", 89 },
+        { "Z", 90 },
+        { "ESCAPE",     256 }, { "ENTER",      257 }, { "TAB",        258 },
+        { "BACKSPACE",  259 }, { "INSERT",     260 }, { "DELETE",     261 },
+        { "RIGHT",      262 }, { "LEFT",       263 }, { "DOWN",       264 },
+        { "UP",         265 }, { "PAGE_UP",    266 }, { "PAGE_DOWN",  267 },
+        { "HOME",       268 }, { "END",        269 }, { "CAPS_LOCK",  280 },
+        { "F1",  290 }, { "F2",  291 }, { "F3",  292 }, { "F4",  293 },
+        { "F5",  294 }, { "F6",  295 }, { "F7",  296 }, { "F8",  297 },
+        { "F9",  298 }, { "F10", 299 }, { "F11", 300 }, { "F12", 301 },
+        { "LEFT_SHIFT",    340 }, { "LEFT_CONTROL",  341 },
+        { "LEFT_ALT",      342 }, { "LEFT_SUPER",    343 },
+        { "RIGHT_SHIFT",   344 }, { "RIGHT_CONTROL", 345 },
+        { "RIGHT_ALT",     346 }, { "RIGHT_SUPER",   347 },
+    };
+    for (size_t i = 0; i < sizeof(key_constants) / sizeof(key_constants[0]); ++i) {
+        lua_pushinteger(L, key_constants[i].value);
+        lua_setfield(L, -2, key_constants[i].name);
+    }
+    lua_setfield(L, -2, "key");  // engine.key = {...}
+
+    // Mouse button constants as engine.mouse.*
+    lua_newtable(L);
+    lua_pushinteger(L, 0); lua_setfield(L, -2, "LEFT");
+    lua_pushinteger(L, 1); lua_setfield(L, -2, "RIGHT");
+    lua_pushinteger(L, 2); lua_setfield(L, -2, "MIDDLE");
+    lua_setfield(L, -2, "mouse");  // engine.mouse = {...}
 
     lua_setglobal(L, "engine");
 }

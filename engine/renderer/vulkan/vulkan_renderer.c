@@ -45,7 +45,7 @@ static const uint16_t QUAD_INDICES[] = {
 static void framebuffer_resize_callback(GLFWwindow *win, int w, int h) {
     (void)w;
     (void)h;
-    VulkanContext *ctx = (VulkanContext *)glfwGetWindowUserPointer(win);
+    VulkanContext *ctx = (VulkanContext *)platform_get_backend_data_from_window(win);
     if (ctx != nullptr)
         ctx->framebuffer_resized = true;
 }
@@ -394,9 +394,9 @@ static void destroy_descriptor_resources(VulkanContext *ctx) {
 static bool vulkan_init(Renderer *self) {
     VulkanContext *ctx = (VulkanContext *)self->backend_data;
 
-    // Register resize callback.
+    // Register resize callback via the platform's shared user pointer.
     GLFWwindow *win = (GLFWwindow *)ctx->window_handle;
-    glfwSetWindowUserPointer(win, ctx);
+    platform_set_backend_data_from_window(win, ctx);
     glfwSetFramebufferSizeCallback(win, framebuffer_resize_callback);
 
     // Instance + device.

@@ -1,4 +1,5 @@
 #include "engine.h"
+#include "input.h"
 #include "../platform/platform.h"
 
 #include <stdio.h>
@@ -41,6 +42,7 @@ struct Engine {
     LuaHost          *lua_host;       // created lazily on first script load
     HierarchyContext  hctx;           // stored here so LuaHost can reference
     CameraContext     cam_ctx;        // stored here so LuaHost can reference
+    Input             input;          // per-frame keyboard + mouse state
     Clock             clock;
     EngineCallbacks   callbacks;
     char             *current_scene;    // filepath of the currently loaded scene
@@ -107,6 +109,10 @@ Engine *engine_create(const EngineConfig *config) {
         free(engine);
         return nullptr;
     }
+
+    // --- Input system -------------------------------------------------------
+    input_init(&engine->input);
+    platform_set_input(engine->platform, &engine->input);
 
     printf("[engine] created successfully (backend=%s)\n",
            config->backend == RENDERER_BACKEND_VULKAN ? "vulkan" : "opengl");
@@ -194,7 +200,8 @@ void engine_run(Engine *engine) {
            fixed_dt, engine->fixed_hz);
 
     while (!platform_should_close(engine->platform)) {
-        platform_poll_events(engine->platform);
+        input_begin_frame(&engine->input);          // clear previous frame edges
+        platform_poll_events(engine->platform);     // fills new edges + keys_down
         clock_tick(&engine->clock);
 
         // ----- fixed update: drain accumulator at a constant rate ----------
@@ -302,6 +309,10 @@ Platform *engine_get_platform(Engine *engine) {
     return engine != nullptr ? engine->platform : nullptr;
 }
 
+Input *engine_get_input(Engine *engine) {
+    return engine != nullptr ? &engine->input : nullptr;
+}
+
 LuaHost *engine_get_lua_host(Engine *engine) {
     return engine != nullptr ? engine->lua_host : nullptr;
 }
@@ -335,7 +346,8 @@ bool engine_load_script(Engine *engine, const char *path) {
 
         engine->lua_host = lua_host_create(
             engine->world, hctx, cam_ctx,
-            engine->asset_manager, &engine->renderer);
+            engine->asset_manager, &engine->renderer,
+            &engine->input);
 
         if (engine->lua_host == nullptr) {
             fprintf(stderr, "[engine] failed to create LuaHost\n");
@@ -365,7 +377,8 @@ bool engine_load_scene(Engine *engine, const char *filepath) {
     if (engine->lua_host == nullptr) {
         engine->lua_host = lua_host_create(
             engine->world, &engine->hctx, &engine->cam_ctx,
-            engine->asset_manager, &engine->renderer);
+            engine->asset_manager, &engine->renderer,
+            &engine->input);
 
         if (engine->lua_host == nullptr) {
             fprintf(stderr, "[engine] warning: failed to create LuaHost "
@@ -407,7 +420,8 @@ bool engine_switch_scene(Engine *engine, const char *filepath) {
     if (engine->lua_host == nullptr) {
         engine->lua_host = lua_host_create(
             engine->world, &engine->hctx, &engine->cam_ctx,
-            engine->asset_manager, &engine->renderer);
+            engine->asset_manager, &engine->renderer,
+            &engine->input);
     }
 
     if (!scene_switch(engine, filepath)) {

@@ -252,7 +252,7 @@ void asset_manager_release(AssetManager *am, AssetHandle handle) {
         }
 
         printf("[asset_manager] freed: '%s'\n", e->path);
-        *e = (AssetEntry){0};  // clear slot
+        *e = (AssetEntry){};  // clear slot
         am->count--;
     }
 }

@@ -2,14 +2,21 @@
 #define ENGINE_CORE_ENGINE_H
 
 #include "../renderer/renderer.h"   // RendererBackend
-#include "asset_manager.h"          // AssetManager, AssetHandle
-#include "clock.h"                  // Clock
-#include "ecs/ecs.h"                // World, Entity, ComponentId
-#include "input.h"                  // Input
-#include "scene.h"                  // scene_load, scene_save
-#include "scripting/lua_host.h"     // LuaHost
 
 #include <stdint.h>
+#include <stdbool.h>
+
+// Forward declarations to prevent transitive header pollution (Rule 2)
+typedef struct AssetManager AssetManager;
+typedef struct Clock Clock;
+typedef struct World World;
+typedef struct Input Input;
+typedef struct Platform Platform;
+typedef struct HierarchyContext HierarchyContext;
+typedef struct CameraContext CameraContext;
+typedef struct LuaHost LuaHost;
+typedef uint32_t Entity;
+typedef uint8_t ComponentId;
 
 // ---------------------------------------------------------------------------
 // Engine — owns the full application lifecycle.
@@ -57,7 +64,7 @@ typedef struct Engine Engine;
 
 /// Create the engine: platform + renderer are stood up internally.
 /// Returns nullptr on failure.
-Engine *engine_create(const EngineConfig *config);
+[[nodiscard]] Engine *engine_create(const EngineConfig *config);
 
 /// Initialise the renderer backend (GPU resources become available).
 /// Must be called before loading assets or calling engine_run().

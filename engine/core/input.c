@@ -7,7 +7,7 @@
 #define GLFW_RELEASE 0
 
 void input_init(Input *input) {
-    memset(input, 0, sizeof(Input));
+    *input = (Input){};
     input->_first_mouse = true;
 }
 

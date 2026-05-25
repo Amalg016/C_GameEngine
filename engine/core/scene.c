@@ -36,8 +36,8 @@ typedef struct SceneVelocity {
 // ---------------------------------------------------------------------------
 
 /// Read the entire contents of a file into a malloc'd string.
-/// Caller must free() the returned buffer.  Returns nullptr on failure.
-static char *read_file_to_string(const char *filepath) {
+/// Caller assumes ownership and must free() the returned buffer. Returns nullptr on failure.
+[[nodiscard]] static char *read_file_to_string(const char *filepath) {
     FILE *f = fopen(filepath, "rb");
     if (f == nullptr) {
         fprintf(stderr, "[scene] cannot open file: %s\n", filepath);
@@ -255,7 +255,7 @@ bool scene_load(Engine *engine, const char *filepath) {
     }
 
     // --- 1. Asset pre-loading ---------------------------------------------
-    TexMap texmap = {0};
+    TexMap texmap = {};
 
     cJSON *assets = cJSON_GetObjectItemCaseSensitive(root, "assets");
     if (assets != nullptr) {

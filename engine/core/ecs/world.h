@@ -52,7 +52,7 @@ typedef struct World {
 // --- Lifecycle -------------------------------------------------------------
 
 /// Create an empty world.  Returns nullptr on failure.
-World *world_create(void);
+[[nodiscard]] World *world_create(void);
 
 /// Destroy the world and free all entity / component memory.
 void world_destroy(World *world);
@@ -62,12 +62,12 @@ void world_destroy(World *world);
 /// Register a new component type with the given element size.
 /// Must be called before any entity uses this component.
 /// Returns the assigned ComponentId, or UINT8_MAX on failure.
-ComponentId world_register_component(World *world, size_t element_size);
+[[nodiscard]] ComponentId world_register_component(World *world, size_t element_size);
 
 // --- Entity management -----------------------------------------------------
 
 /// Create a new entity.  Returns ENTITY_INVALID on failure.
-Entity world_entity_create(World *world);
+[[nodiscard]] Entity world_entity_create(World *world);
 
 /// Destroy an entity, removing all its components and recycling its index.
 void world_entity_destroy(World *world, Entity entity);

@@ -13,7 +13,7 @@ typedef struct Platform Platform;
 typedef struct Input    Input;
 
 /// Create a window.  Returns nullptr on failure.
-Platform *platform_create(const char *title, uint32_t width, uint32_t height);
+[[nodiscard]] Platform *platform_create(const char *title, uint32_t width, uint32_t height);
 
 /// Destroy the window and free resources.
 void platform_destroy(Platform *p);

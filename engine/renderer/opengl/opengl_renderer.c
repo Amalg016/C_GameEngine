@@ -53,7 +53,7 @@ Renderer opengl_renderer_create(Platform *platform) {
     OpenGLContext *ctx = calloc(1, sizeof(OpenGLContext));
     if (ctx == nullptr) {
         fprintf(stderr, "[opengl] failed to allocate OpenGLContext\n");
-        return (Renderer){0};
+        return (Renderer){};
     }
 
     Renderer r = {

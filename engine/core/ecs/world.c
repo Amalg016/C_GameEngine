@@ -8,8 +8,8 @@
 // Configuration
 // ---------------------------------------------------------------------------
 
-#define INITIAL_ENTITY_CAPACITY  256
-#define INITIAL_FREE_CAPACITY    64
+constexpr uint32_t InitialEntityCapacity = 256;
+constexpr uint32_t InitialFreeCapacity   = 64;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -20,7 +20,7 @@ static bool grow_entities(World *world, uint32_t index) {
     if (index < world->entity_capacity) return true;
 
     uint32_t new_cap = world->entity_capacity == 0
-                     ? INITIAL_ENTITY_CAPACITY
+                     ? InitialEntityCapacity
                      : world->entity_capacity * 2;
     if (new_cap <= index) new_cap = index + 1;
     if (new_cap > ECS_MAX_ENTITIES) new_cap = ECS_MAX_ENTITIES;
@@ -42,7 +42,7 @@ static bool grow_entities(World *world, uint32_t index) {
 static bool free_list_push(World *world, uint32_t index) {
     if (world->free_count >= world->free_capacity) {
         uint32_t new_cap = world->free_capacity == 0
-                         ? INITIAL_FREE_CAPACITY
+                         ? InitialFreeCapacity
                          : world->free_capacity * 2;
         uint32_t *new_list = realloc(world->free_list,
                                      (size_t)new_cap * sizeof(uint32_t));
@@ -68,10 +68,26 @@ World *world_create(void) {
     World *world = calloc(1, sizeof(World));
     if (world == nullptr) return nullptr;
 
+    // Pre-allocate to guarantee zero heap allocations during runtime hot-paths.
+    world->entity_capacity = InitialEntityCapacity;
+    world->generations = calloc(world->entity_capacity, sizeof(uint32_t));
+    if (world->generations == nullptr) {
+        free(world);
+        return nullptr;
+    }
+
+    world->free_capacity = InitialFreeCapacity;
+    world->free_list = malloc(world->free_capacity * sizeof(uint32_t));
+    if (world->free_list == nullptr) {
+        free(world->generations);
+        free(world);
+        return nullptr;
+    }
+
     // Index 0 is reserved — ENTITY_INVALID has index 0.
     world->next_index = 1;
 
-    printf("[ecs] world created\n");
+    printf("[ecs] world created (pre-allocated %u entities)\n", InitialEntityCapacity);
     return world;
 }
 

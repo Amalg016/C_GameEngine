@@ -86,7 +86,7 @@ Platform *platform_create(const char *title, uint32_t width, uint32_t height) {
         .window = win,
         .width  = width,
         .height = height,
-        .user_data = {0},
+        .user_data = {},
     };
 
     // Point the GLFW user pointer at our wrapper struct.

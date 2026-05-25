@@ -245,5 +245,5 @@ void vulkan_texture_destroy(VulkanContext *ctx, VulkanTexture *tex) {
     if (tex->memory != VK_NULL_HANDLE)
         vkFreeMemory(ctx->device, tex->memory, nullptr);
 
-    *tex = (VulkanTexture){0};
+    *tex = (VulkanTexture){};
 }

@@ -49,7 +49,7 @@ typedef struct AssetManagerCallbacks {
 // --- Public API ------------------------------------------------------------
 
 /// Create an empty asset manager.
-AssetManager *asset_manager_create(void);
+[[nodiscard]] AssetManager *asset_manager_create(void);
 
 /// Destroy the manager, releasing all remaining assets.
 void asset_manager_destroy(AssetManager *am);

@@ -262,7 +262,7 @@ static bool create_logical_device(VulkanContext *ctx) {
         };
     }
 
-    VkPhysicalDeviceFeatures features = {0};
+    VkPhysicalDeviceFeatures features = {};
 
     VkDeviceCreateInfo ci = {
         .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,

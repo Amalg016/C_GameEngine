@@ -15,7 +15,7 @@ static const double MAX_FRAME_DELTA = 0.25;
 void clock_start(Clock *clock, double fixed_dt) {
     if (clock == nullptr) return;
 
-    memset(clock, 0, sizeof(*clock));
+    *clock = (Clock){};
 
     double now        = platform_get_time();
     clock->start_time = now;

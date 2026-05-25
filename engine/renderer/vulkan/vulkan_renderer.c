@@ -721,7 +721,7 @@ Renderer vulkan_renderer_create(Platform *platform) {
     VulkanContext *ctx = calloc(1, sizeof(VulkanContext));
     if (ctx == nullptr) {
         fprintf(stderr, "[vulkan] failed to allocate VulkanContext\n");
-        return (Renderer){0};
+        return (Renderer){};
     }
 
     ctx->window_handle = platform_get_window_handle(platform);

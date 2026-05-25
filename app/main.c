@@ -1,5 +1,10 @@
 #include "../engine/core/engine.h"
 #include "../engine/platform/platform.h"
+#include "../engine/core/asset_manager.h"
+#include "../engine/core/clock.h"
+#include "../engine/core/ecs/ecs.h"
+#include "../engine/core/input.h"
+#include "../engine/core/scripting/lua_host.h"
 
 #include <stdio.h>
 #include <stdlib.h>

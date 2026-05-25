@@ -1,6 +1,11 @@
 #include "engine.h"
 #include "input.h"
 #include "../platform/platform.h"
+#include "asset_manager.h"
+#include "clock.h"
+#include "ecs/ecs.h"
+#include "scene.h"
+#include "scripting/lua_host.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,7 +33,7 @@ static void am_destroy_texture(void *backend_ctx, void *gpu_data) {
 // Default fixed timestep rate (Hz).
 // ---------------------------------------------------------------------------
 
-static const double DEFAULT_FIXED_HZ = 60.0;
+constexpr double DefaultFixedHz = 60.0;
 
 // ---------------------------------------------------------------------------
 // Engine internals
@@ -68,7 +73,7 @@ Engine *engine_create(const EngineConfig *config) {
         return nullptr;
     }
 
-    engine->fixed_hz = DEFAULT_FIXED_HZ;
+    engine->fixed_hz = DefaultFixedHz;
 
     // --- platform -----------------------------------------------------------
     engine->platform = platform_create(config->title,
@@ -160,7 +165,7 @@ void engine_set_callbacks(Engine *engine, const EngineCallbacks *callbacks) {
     if (engine == nullptr) return;
     engine->callbacks = callbacks != nullptr
         ? *callbacks
-        : (EngineCallbacks){0};
+        : (EngineCallbacks){};
 }
 
 // ---------------------------------------------------------------------------
@@ -169,7 +174,7 @@ void engine_set_callbacks(Engine *engine, const EngineCallbacks *callbacks) {
 
 void engine_set_fixed_timestep(Engine *engine, double hz) {
     if (engine == nullptr) return;
-    engine->fixed_hz = hz > 0.0 ? hz : DEFAULT_FIXED_HZ;
+    engine->fixed_hz = hz > 0.0 ? hz : DefaultFixedHz;
 }
 
 // ---------------------------------------------------------------------------

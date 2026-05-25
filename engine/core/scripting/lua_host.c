@@ -354,7 +354,7 @@ bool lua_host_attach_script(LuaHost *host, Entity entity,
 
     if (sc == nullptr) {
         // First script on this entity — add the component.
-        ScriptComponent new_sc = {0};
+        ScriptComponent new_sc = {};
         world_add_component(host->world, entity, c_script, &new_sc);
         sc = (ScriptComponent *)world_get_component(
             host->world, entity, c_script);

@@ -66,7 +66,7 @@ vulkan: shaders $(VULKAN_SRCS)
 
 # ---- OpenGL stub -----------------------------------------------------------
 
-OPENGL_SRCS := $(SRC_APP) $(SRC_ENGINE) $(SRC_OPENGL)
+OPENGL_SRCS := $(SRC_APP) $(SRC_ENGINE) $(SRC_OPENGL) $(SRC_THIRD_PARTY)
 OPENGL_BIN  := engine_opengl
 
 opengl: $(OPENGL_SRCS)
@@ -79,7 +79,7 @@ opengl: $(OPENGL_SRCS)
 # ---- Web (Emscripten) ------------------------------------------------------
 
 EMCC       := emcc
-WEB_SRCS   := $(SRC_APP) $(SRC_ENGINE) $(SRC_OPENGL)
+WEB_SRCS   := $(SRC_APP) $(SRC_ENGINE) $(SRC_OPENGL) $(SRC_THIRD_PARTY)
 WEB_OUT    := engine_web.html
 
 web: $(WEB_SRCS)

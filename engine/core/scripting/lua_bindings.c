@@ -36,6 +36,13 @@ extern bool              lua_host_sprite_registered(LuaHost *host);
 extern Input            *lua_host_get_input(LuaHost *host);
 
 // ---------------------------------------------------------------------------
+// Application-level Sprite component.  Mirrors the definition in main.c.
+// ---------------------------------------------------------------------------
+typedef struct LuaSprite {
+    AssetHandle texture;
+} LuaSprite;
+
+// ---------------------------------------------------------------------------
 // Helper — retrieve the LuaHost* from the first upvalue.
 // ---------------------------------------------------------------------------
 
@@ -76,6 +83,22 @@ static int l_destroy_entity(lua_State *L) {
     LuaHost *host = get_host(L);
     World *world = lua_host_get_world(host);
     Entity e = (Entity)luaL_checkinteger(L, 1);
+
+    // 1. Detach all scripts attached to this entity first.
+    // This executes on_destroy() and cleanly releases Lua registry references.
+    lua_host_detach_script(host, e, nullptr);
+
+    // 2. Release Sprite component's texture reference if it exists.
+    if (lua_host_sprite_registered(host)) {
+        ComponentId c_sprite = lua_host_get_sprite_id(host);
+        LuaSprite *spr = (LuaSprite *)world_get_component(world, e, c_sprite);
+        if (spr != nullptr && spr->texture != ASSET_HANDLE_INVALID) {
+            AssetManager *am = lua_host_get_asset_manager(host);
+            asset_manager_release(am, spr->texture);
+        }
+    }
+
+    // 3. Destroy the entity in the ECS world.
     world_entity_destroy(world, e);
     return 0;
 }
@@ -179,16 +202,27 @@ static int l_load_texture(lua_State *L) {
 }
 
 // ---------------------------------------------------------------------------
+// engine.release_texture(asset_handle)
+// ---------------------------------------------------------------------------
+static int l_release_texture(lua_State *L) {
+    LuaHost *host = get_host(L);
+    AssetManager *am = lua_host_get_asset_manager(host);
+
+    AssetHandle h = (AssetHandle)luaL_checkinteger(L, 1);
+    if (h != ASSET_HANDLE_INVALID) {
+        asset_manager_release(am, h);
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
 // engine.set_sprite(entity_id, asset_handle)
 //
 // The Sprite component type is registered lazily on first use so we don't
 // require the app to pre-register it.
 // ---------------------------------------------------------------------------
 
-/// Application-level Sprite component.  Mirrors the definition in main.c.
-typedef struct LuaSprite {
-    AssetHandle texture;
-} LuaSprite;
+/// Application-level Sprite component (defined at the top of this file).
 
 static int l_set_sprite(lua_State *L) {
     LuaHost *host = get_host(L);
@@ -422,6 +456,7 @@ static const luaL_Reg engine_funcs[] = {
     { "get_transform",          l_get_transform         },
     { "set_parent",             l_set_parent            },
     { "load_texture",           l_load_texture          },
+    { "release_texture",        l_release_texture       },
     { "set_sprite",             l_set_sprite            },
     { "set_velocity",           l_set_velocity          },
     { "set_camera_ortho",       l_set_camera_ortho      },

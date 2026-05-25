@@ -120,7 +120,7 @@ bool vulkan_swapchain_create(VulkanContext *ctx,
 
     // Create image views.
     ctx->swapchain.image_views =
-        malloc(sizeof(VkImageView) * ctx->swapchain.image_count);
+        calloc(ctx->swapchain.image_count, sizeof(VkImageView));
 
     for (uint32_t i = 0; i < ctx->swapchain.image_count; ++i) {
         VkImageViewCreateInfo iv_ci = {

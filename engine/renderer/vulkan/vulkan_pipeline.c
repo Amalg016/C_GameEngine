@@ -354,7 +354,7 @@ void vulkan_pipeline_destroy(VulkanContext *ctx) {
 
 bool vulkan_framebuffers_create(VulkanContext *ctx) {
     ctx->swapchain.framebuffers =
-        malloc(sizeof(VkFramebuffer) * ctx->swapchain.image_count);
+        calloc(ctx->swapchain.image_count, sizeof(VkFramebuffer));
     if (ctx->swapchain.framebuffers == nullptr) return false;
 
     for (uint32_t i = 0; i < ctx->swapchain.image_count; ++i) {

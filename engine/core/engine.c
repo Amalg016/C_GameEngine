@@ -393,7 +393,11 @@ bool engine_load_scene(Engine *engine, const char *filepath) {
     // Unload any existing scene before loading the new one.
     scene_unload(engine);
 
-    if (!scene_load(engine, filepath)) return false;
+    if (!scene_load(engine, filepath)) {
+        free(engine->current_scene);
+        engine->current_scene = nullptr;
+        return false;
+    }
 
     // Track the currently loaded scene.
     free(engine->current_scene);

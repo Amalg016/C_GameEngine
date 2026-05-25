@@ -255,33 +255,35 @@ void engine_run(Engine *engine) {
 void engine_destroy(Engine *engine) {
     if (engine == nullptr) return;
 
-    // Safety: if the app skipped engine_run(), the renderer may still be live.
-    if (engine->renderer_alive) {
-        renderer_shutdown(&engine->renderer);
-        engine->renderer_alive = false;
-    }
-
-    // Unload the current scene first — releases asset references held by
+    // 1. Unload the current scene first — releases asset references held by
     // Sprite components so the AssetManager can free GPU resources cleanly.
     scene_unload(engine);
 
-    // Lua host must be destroyed before the world (it holds World pointers).
+    // 2. Lua host must be destroyed before the world (it holds World pointers).
     if (engine->lua_host != nullptr) {
         lua_host_destroy(engine->lua_host);
         engine->lua_host = nullptr;
     }
 
-    // Scene name.
+    // 3. Scene name.
     free(engine->current_scene);
     engine->current_scene = nullptr;
 
-    // ECS world must be destroyed before asset manager / renderer.
+    // 4. ECS world must be destroyed before asset manager / renderer.
     world_destroy(engine->world);
 
-    // Asset manager must be destroyed BEFORE the renderer — it may need
-    // to free GPU resources via the renderer callbacks.
+    // 5. Asset manager must be destroyed BEFORE the renderer is shut down —
+    // it needs to free remaining or leaked GPU resources via renderer callbacks
+    // while the Vulkan/OpenGL device is still active.
     asset_manager_destroy(engine->asset_manager);
 
+    // 6. Shut down the renderer (destroys Vulkan/OpenGL devices and contexts).
+    if (engine->renderer_alive) {
+        renderer_shutdown(&engine->renderer);
+        engine->renderer_alive = false;
+    }
+
+    // 7. Free remaining context wrappers and platform resources.
     renderer_destroy(&engine->renderer);
     platform_destroy(engine->platform);
 

@@ -21,6 +21,11 @@ static void vulkan_update_descriptor_sets(VulkanContext *ctx,
                                            VkImageView    view,
                                            VkSampler      sampler);
 
+#ifdef EDITOR_BUILD
+static void vulkan_offscreen_destroy(VulkanContext *ctx);
+static bool vulkan_offscreen_create(VulkanContext *ctx, uint32_t width, uint32_t height);
+#endif
+
 // ---------------------------------------------------------------------------
 // Quad geometry — a full-screen quad with UVs
 // ---------------------------------------------------------------------------
@@ -69,6 +74,11 @@ static bool recreate_swapchain(VulkanContext *ctx) {
         return false;
     if (!vulkan_framebuffers_create(ctx))
         return false;
+
+#ifdef EDITOR_BUILD
+    if (!vulkan_offscreen_create(ctx, (uint32_t)w, (uint32_t)h))
+        return false;
+#endif
 
     return true;
 }
@@ -436,6 +446,11 @@ static bool vulkan_init(Renderer *self) {
     if (!create_descriptor_resources(ctx))
         return false;
 
+#ifdef EDITOR_BUILD
+    if (!vulkan_offscreen_create(ctx, (uint32_t)fb_w, (uint32_t)fb_h))
+        return false;
+#endif
+
     printf("[vulkan] renderer fully initialised\n");
     return true;
 }
@@ -444,6 +459,10 @@ static void vulkan_shutdown(Renderer *self) {
     VulkanContext *ctx = (VulkanContext *)self->backend_data;
     if (ctx->device != VK_NULL_HANDLE)
         vkDeviceWaitIdle(ctx->device);
+
+#ifdef EDITOR_BUILD
+    vulkan_offscreen_destroy(ctx);
+#endif
 
     destroy_descriptor_resources(ctx);
     destroy_fallback_texture(ctx);
@@ -493,8 +512,36 @@ static bool vulkan_begin_frame(Renderer *self) {
     vkBeginCommandBuffer(cmd, &begin_info);
 
     // Begin render pass.
-    VkClearValue clear = {.color = {{0.01f, 0.01f, 0.02f, 1.0f}}};
+#ifdef EDITOR_BUILD
+    VkClearValue offscreen_clear = {.color = {{0.0f, 0.0f, 0.0f, 0.0f}}};
+    VkRenderPassBeginInfo rp_info = {
+        .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass  = ctx->offscreen_render_pass,
+        .framebuffer = ctx->offscreen_framebuffer,
+        .renderArea  = {.offset = {0, 0}, .extent = {ctx->offscreen_w, ctx->offscreen_h}},
+        .clearValueCount = 1,
+        .pClearValues    = &offscreen_clear,
+    };
 
+    vkCmdBeginRenderPass(cmd, &rp_info, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport vp = {
+        .x        = 0.0f,
+        .y        = 0.0f,
+        .width    = (float)ctx->offscreen_w,
+        .height   = (float)ctx->offscreen_h,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+    vkCmdSetViewport(cmd, 0, 1, &vp);
+
+    VkRect2D scissor = {
+        .offset = {0, 0},
+        .extent = {ctx->offscreen_w, ctx->offscreen_h},
+    };
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+#else
+    VkClearValue clear = {.color = {{0.01f, 0.01f, 0.02f, 1.0f}}};
     VkRenderPassBeginInfo rp_info = {
         .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .renderPass  = ctx->render_pass,
@@ -506,7 +553,6 @@ static bool vulkan_begin_frame(Renderer *self) {
 
     vkCmdBeginRenderPass(cmd, &rp_info, VK_SUBPASS_CONTENTS_INLINE);
 
-    // Set dynamic viewport + scissor.
     VkViewport vp = {
         .x        = 0.0f,
         .y        = 0.0f,
@@ -522,6 +568,7 @@ static bool vulkan_begin_frame(Renderer *self) {
         .extent = ctx->swapchain.extent,
     };
     vkCmdSetScissor(cmd, 0, 1, &scissor);
+#endif
 
     // Default VP to identity — overwritten if camera_update + set_view_projection is called.
     float identity[16] = {
@@ -748,4 +795,288 @@ void vulkan_renderer_destroy(Renderer *r) {
     free(r->backend_data);
     r->backend_data = nullptr;
 }
+
+// ---------------------------------------------------------------------------
+// Editor-only accessors (compiled only when EDITOR_BUILD is defined)
+// ---------------------------------------------------------------------------
+
+#ifdef EDITOR_BUILD
+
+VkInstance vulkan_renderer_get_instance(Renderer *r) {
+    VulkanContext *ctx = (VulkanContext *)r->backend_data;
+    return ctx->instance;
+}
+
+VkPhysicalDevice vulkan_renderer_get_physical_device(Renderer *r) {
+    VulkanContext *ctx = (VulkanContext *)r->backend_data;
+    return ctx->physical_device;
+}
+
+VkDevice vulkan_renderer_get_device(Renderer *r) {
+    VulkanContext *ctx = (VulkanContext *)r->backend_data;
+    return ctx->device;
+}
+
+uint32_t vulkan_renderer_get_graphics_family(Renderer *r) {
+    VulkanContext *ctx = (VulkanContext *)r->backend_data;
+    return ctx->graphics_family;
+}
+
+VkQueue vulkan_renderer_get_graphics_queue(Renderer *r) {
+    VulkanContext *ctx = (VulkanContext *)r->backend_data;
+    return ctx->graphics_queue;
+}
+
+VkRenderPass vulkan_renderer_get_render_pass(Renderer *r) {
+    VulkanContext *ctx = (VulkanContext *)r->backend_data;
+    return ctx->render_pass;
+}
+
+VkCommandBuffer vulkan_renderer_get_current_command_buffer(Renderer *r) {
+    VulkanContext *ctx = (VulkanContext *)r->backend_data;
+    return ctx->command_buffers[ctx->current_frame];
+}
+
+uint32_t vulkan_renderer_get_image_count(Renderer *r) {
+    VulkanContext *ctx = (VulkanContext *)r->backend_data;
+    return ctx->swapchain.image_count;
+}
+
+#include "../../editor/ui/imgui_vulkan_bridge.h"
+
+static void vulkan_offscreen_destroy(VulkanContext *ctx) {
+    if (ctx->device == VK_NULL_HANDLE) return;
+
+    if (ctx->offscreen_descriptor_set != nullptr) {
+        imgui_bridge_remove_texture(ctx->offscreen_descriptor_set);
+        ctx->offscreen_descriptor_set = nullptr;
+    }
+    if (ctx->offscreen_framebuffer != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(ctx->device, ctx->offscreen_framebuffer, nullptr);
+        ctx->offscreen_framebuffer = VK_NULL_HANDLE;
+    }
+    if (ctx->offscreen_render_pass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(ctx->device, ctx->offscreen_render_pass, nullptr);
+        ctx->offscreen_render_pass = VK_NULL_HANDLE;
+    }
+    if (ctx->offscreen_sampler != VK_NULL_HANDLE) {
+        vkDestroySampler(ctx->device, ctx->offscreen_sampler, nullptr);
+        ctx->offscreen_sampler = VK_NULL_HANDLE;
+    }
+    if (ctx->offscreen_image_view != VK_NULL_HANDLE) {
+        vkDestroyImageView(ctx->device, ctx->offscreen_image_view, nullptr);
+        ctx->offscreen_image_view = VK_NULL_HANDLE;
+    }
+    if (ctx->offscreen_image != VK_NULL_HANDLE) {
+        vkDestroyImage(ctx->device, ctx->offscreen_image, nullptr);
+        ctx->offscreen_image = VK_NULL_HANDLE;
+    }
+    if (ctx->offscreen_image_memory != VK_NULL_HANDLE) {
+        vkFreeMemory(ctx->device, ctx->offscreen_image_memory, nullptr);
+        ctx->offscreen_image_memory = VK_NULL_HANDLE;
+    }
+}
+
+static bool vulkan_offscreen_create(VulkanContext *ctx, uint32_t width, uint32_t height) {
+    vulkan_offscreen_destroy(ctx);
+
+    ctx->offscreen_w = width;
+    ctx->offscreen_h = height;
+
+    VkImageCreateInfo image_info = {
+        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType     = VK_IMAGE_TYPE_2D,
+        .format        = ctx->swapchain.image_format,
+        .extent        = { .width = width, .height = height, .depth = 1 },
+        .mipLevels     = 1,
+        .arrayLayers   = 1,
+        .samples       = VK_SAMPLE_COUNT_1_BIT,
+        .tiling        = VK_IMAGE_TILING_OPTIMAL,
+        .usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    };
+
+    if (vkCreateImage(ctx->device, &image_info, nullptr, &ctx->offscreen_image) != VK_SUCCESS) {
+        fprintf(stderr, "[vulkan] failed to create offscreen image\n");
+        return false;
+    }
+
+    VkMemoryRequirements mem_reqs;
+    vkGetImageMemoryRequirements(ctx->device, ctx->offscreen_image, &mem_reqs);
+
+    uint32_t mem_type = vulkan_find_memory_type(ctx->physical_device,
+                                                mem_reqs.memoryTypeBits,
+                                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (mem_type == UINT32_MAX) {
+        vulkan_offscreen_destroy(ctx);
+        return false;
+    }
+
+    VkMemoryAllocateInfo alloc_info = {
+        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize  = mem_reqs.size,
+        .memoryTypeIndex = mem_type,
+    };
+
+    if (vkAllocateMemory(ctx->device, &alloc_info, nullptr, &ctx->offscreen_image_memory) != VK_SUCCESS) {
+        fprintf(stderr, "[vulkan] failed to allocate offscreen image memory\n");
+        vulkan_offscreen_destroy(ctx);
+        return false;
+    }
+
+    vkBindImageMemory(ctx->device, ctx->offscreen_image, ctx->offscreen_image_memory, 0);
+
+    VkImageViewCreateInfo view_info = {
+        .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image    = ctx->offscreen_image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format   = ctx->swapchain.image_format,
+        .subresourceRange = {
+            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel   = 0,
+            .levelCount     = 1,
+            .baseArrayLayer = 0,
+            .layerCount     = 1,
+        },
+    };
+
+    if (vkCreateImageView(ctx->device, &view_info, nullptr, &ctx->offscreen_image_view) != VK_SUCCESS) {
+        fprintf(stderr, "[vulkan] failed to create offscreen image view\n");
+        vulkan_offscreen_destroy(ctx);
+        return false;
+    }
+
+    VkSamplerCreateInfo sampler_info = {
+        .sType        = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter    = VK_FILTER_LINEAR,
+        .minFilter    = VK_FILTER_LINEAR,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .mipmapMode   = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .maxLod       = 0.0f,
+    };
+
+    if (vkCreateSampler(ctx->device, &sampler_info, nullptr, &ctx->offscreen_sampler) != VK_SUCCESS) {
+        fprintf(stderr, "[vulkan] failed to create offscreen sampler\n");
+        vulkan_offscreen_destroy(ctx);
+        return false;
+    }
+
+    VkAttachmentDescription color_attachment = {
+        .format         = ctx->swapchain.image_format,
+        .samples        = VK_SAMPLE_COUNT_1_BIT,
+        .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+        .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+
+    VkAttachmentReference color_attachment_ref = {
+        .attachment = 0,
+        .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    };
+
+    VkSubpassDescription subpass = {
+        .pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .colorAttachmentCount = 1,
+        .pColorAttachments    = &color_attachment_ref,
+    };
+
+    VkSubpassDependency dependency = {
+        .srcSubpass    = VK_SUBPASS_EXTERNAL,
+        .dstSubpass    = 0,
+        .srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcAccessMask = 0,
+        .dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    };
+
+    VkRenderPassCreateInfo render_pass_info = {
+        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+        .attachmentCount = 1,
+        .pAttachments    = &color_attachment,
+        .subpassCount    = 1,
+        .pSubpasses      = &subpass,
+        .dependencyCount = 1,
+        .pDependencies   = &dependency,
+    };
+
+    if (vkCreateRenderPass(ctx->device, &render_pass_info, nullptr, &ctx->offscreen_render_pass) != VK_SUCCESS) {
+        fprintf(stderr, "[vulkan] failed to create offscreen render pass\n");
+        vulkan_offscreen_destroy(ctx);
+        return false;
+    }
+
+    VkFramebufferCreateInfo framebuffer_info = {
+        .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+        .renderPass      = ctx->offscreen_render_pass,
+        .attachmentCount = 1,
+        .pAttachments    = &ctx->offscreen_image_view,
+        .width           = width,
+        .height          = height,
+        .layers          = 1,
+    };
+
+    if (vkCreateFramebuffer(ctx->device, &framebuffer_info, nullptr, &ctx->offscreen_framebuffer) != VK_SUCCESS) {
+        fprintf(stderr, "[vulkan] failed to create offscreen framebuffer\n");
+        vulkan_offscreen_destroy(ctx);
+        return false;
+    }
+
+    ctx->offscreen_descriptor_set = nullptr;
+    return true;
+}
+
+void vulkan_renderer_transition_to_editor(Renderer *r) {
+    VulkanContext *ctx = (VulkanContext *)r->backend_data;
+    uint32_t frame = ctx->current_frame;
+    VkCommandBuffer cmd = ctx->command_buffers[frame];
+
+    vkCmdEndRenderPass(cmd);
+
+    VkClearValue clear = {.color = {{0.05f, 0.05f, 0.07f, 1.0f}}};
+
+    VkRenderPassBeginInfo rp_info = {
+        .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass  = ctx->render_pass,
+        .framebuffer = ctx->swapchain.framebuffers[ctx->image_index],
+        .renderArea  = {.offset = {0, 0}, .extent = ctx->swapchain.extent},
+        .clearValueCount = 1,
+        .pClearValues    = &clear,
+    };
+
+    vkCmdBeginRenderPass(cmd, &rp_info, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport vp = {
+        .x        = 0.0f,
+        .y        = 0.0f,
+        .width    = (float)ctx->swapchain.extent.width,
+        .height   = (float)ctx->swapchain.extent.height,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+    vkCmdSetViewport(cmd, 0, 1, &vp);
+
+    VkRect2D scissor = {
+        .offset = {0, 0},
+        .extent = ctx->swapchain.extent,
+    };
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+}
+
+void *vulkan_renderer_get_editor_viewport_texture(Renderer *r) {
+    VulkanContext *ctx = (VulkanContext *)r->backend_data;
+    if (ctx->offscreen_descriptor_set == nullptr && ctx->offscreen_image_view != VK_NULL_HANDLE) {
+        ctx->offscreen_descriptor_set = imgui_bridge_add_texture(ctx->offscreen_sampler,
+                                                                 ctx->offscreen_image_view,
+                                                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    return ctx->offscreen_descriptor_set;
+}
+
+#endif // EDITOR_BUILD
 

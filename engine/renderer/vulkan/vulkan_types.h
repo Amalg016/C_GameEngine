@@ -110,6 +110,19 @@ typedef struct VulkanContext {
     // --- current view-projection matrix (set per frame by the camera) ---
     float                    view_proj[16];
 
+#ifdef EDITOR_BUILD
+    // --- offscreen game viewport rendering ---
+    VkImage                  offscreen_image;
+    VkDeviceMemory           offscreen_image_memory;
+    VkImageView              offscreen_image_view;
+    VkSampler                offscreen_sampler;
+    VkFramebuffer            offscreen_framebuffer;
+    VkRenderPass             offscreen_render_pass;
+    VkDescriptorSet          offscreen_descriptor_set;
+    uint32_t                 offscreen_w;
+    uint32_t                 offscreen_h;
+#endif
+
     // --- back-pointer to GLFW window (cast from void*) ---
     void                    *window_handle;
 } VulkanContext;

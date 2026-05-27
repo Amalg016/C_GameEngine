@@ -142,4 +142,18 @@ bool engine_save_scene(Engine *engine, const char *filepath);
 /// Returns nullptr if no scene has been loaded.
 const char *engine_get_current_scene(const Engine *engine);
 
+// ---------------------------------------------------------------------------
+// Editor integration — compiled only when EDITOR_BUILD is defined.
+// ---------------------------------------------------------------------------
+
+#ifdef EDITOR_BUILD
+
+typedef struct Editor Editor;
+
+/// Access the engine's editor layer.
+/// Returns nullptr in runtime builds or if the editor hasn't been created.
+Editor *engine_get_editor(Engine *engine);
+
+#endif // EDITOR_BUILD
+
 #endif // ENGINE_CORE_ENGINE_H

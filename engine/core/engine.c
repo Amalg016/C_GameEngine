@@ -7,6 +7,11 @@
 #include "scene.h"
 #include "scripting/lua_host.h"
 
+#ifdef EDITOR_BUILD
+#include "../editor/editor.h"
+#include "../renderer/vulkan/vulkan_renderer.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -55,6 +60,9 @@ struct Engine {
     bool              renderer_alive;   // true between engine_init and shutdown
     bool              hctx_inited;      // true after hierarchy_init()
     bool              cam_ctx_inited;   // true after camera_init()
+#ifdef EDITOR_BUILD
+    Editor           *editor;         // editor layer (nullptr in runtime builds)
+#endif
 };
 
 // ---------------------------------------------------------------------------
@@ -153,6 +161,14 @@ bool engine_init(Engine *engine) {
     };
     asset_manager_set_callbacks(engine->asset_manager, &cbs);
 
+#ifdef EDITOR_BUILD
+    // Create the editor layer now that the renderer is fully ready.
+    engine->editor = editor_create(engine);
+    if (engine->editor == nullptr) {
+        fprintf(stderr, "[engine] warning: editor creation failed\n");
+    }
+#endif
+
     printf("[engine] renderer initialised — ready for asset loading\n");
     return true;
 }
@@ -239,6 +255,17 @@ void engine_run(Engine *engine) {
                 renderer_draw_quad(&engine->renderer);
             }
 
+#ifdef EDITOR_BUILD
+            // Editor rendering: ImGui draw commands are recorded into the
+            // active command buffer AFTER the game's draws but BEFORE the
+            // render pass ends (inside renderer_end_frame).
+            if (engine->editor != nullptr) {
+                vulkan_renderer_transition_to_editor(&engine->renderer);
+                editor_begin_frame(engine->editor);
+                editor_end_frame(engine->editor);
+            }
+#endif
+
             renderer_end_frame(&engine->renderer);
         }
     }
@@ -254,6 +281,14 @@ void engine_run(Engine *engine) {
 
 void engine_destroy(Engine *engine) {
     if (engine == nullptr) return;
+
+#ifdef EDITOR_BUILD
+    // 0. Destroy the editor layer first (it uses renderer + world).
+    if (engine->editor != nullptr) {
+        editor_destroy(engine->editor);
+        engine->editor = nullptr;
+    }
+#endif
 
     // 1. Unload the current scene first — releases asset references held by
     // Sprite components so the AssetManager can free GPU resources cleanly.
@@ -452,3 +487,15 @@ bool engine_switch_scene(Engine *engine, const char *filepath) {
 const char *engine_get_current_scene(const Engine *engine) {
     return engine != nullptr ? engine->current_scene : nullptr;
 }
+
+// ---------------------------------------------------------------------------
+// Editor accessor (compiled only when EDITOR_BUILD is defined)
+// ---------------------------------------------------------------------------
+
+#ifdef EDITOR_BUILD
+
+Editor *engine_get_editor(Engine *engine) {
+    return engine != nullptr ? engine->editor : nullptr;
+}
+
+#endif // EDITOR_BUILD

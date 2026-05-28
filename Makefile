@@ -1,10 +1,10 @@
 # ============================================================================
 # GameEngine — Makefile
 #
-#   make               Build desktop Vulkan binary
-#   make vulkan         Same as above
+#   make               Build editor (Vulkan + ImGui via cimgui)
+#   make editor         Same as above
+#   make vulkan         Build desktop Vulkan binary (runtime — no editor)
 #   make opengl         Build desktop with OpenGL stub
-#   make editor         Build editor (Vulkan + ImGui via cimgui)
 #   make web            Build for web via Emscripten (OpenGL backend)
 #   make shaders        Compile GLSL → SPIR-V
 #   make clean          Remove build artifacts
@@ -80,7 +80,7 @@ BUILD_DIR := build
 
 .PHONY: all vulkan opengl editor web shaders clean
 
-all: vulkan
+all: editor
 
 # ---- Vulkan (default) — runtime build, NO editor/ImGui --------------------
 
@@ -118,38 +118,43 @@ opengl: $(OPENGL_SRCS)
 IMGUI_OBJ_DIR := $(BUILD_DIR)/imgui
 EDITOR_BIN    := engine_editor
 
-editor: shaders
-	@mkdir -p $(IMGUI_OBJ_DIR)
-	@echo "[editor] Compiling ImGui C++ sources..."
-	$(CXX) $(CXXFLAGS) -c third_party/cimgui/cimgui.cpp \
-		-o $(IMGUI_OBJ_DIR)/cimgui.o
-	$(CXX) $(CXXFLAGS) -c third_party/cimgui/imgui/imgui.cpp \
-		-o $(IMGUI_OBJ_DIR)/imgui.o
-	$(CXX) $(CXXFLAGS) -c third_party/cimgui/imgui/imgui_demo.cpp \
-		-o $(IMGUI_OBJ_DIR)/imgui_demo.o
-	$(CXX) $(CXXFLAGS) -c third_party/cimgui/imgui/imgui_draw.cpp \
-		-o $(IMGUI_OBJ_DIR)/imgui_draw.o
-	$(CXX) $(CXXFLAGS) -c third_party/cimgui/imgui/imgui_tables.cpp \
-		-o $(IMGUI_OBJ_DIR)/imgui_tables.o
-	$(CXX) $(CXXFLAGS) -c third_party/cimgui/imgui/imgui_widgets.cpp \
-		-o $(IMGUI_OBJ_DIR)/imgui_widgets.o
-	$(CXX) $(CXXFLAGS) $$(pkg-config --cflags glfw3) \
-		-c third_party/cimgui/imgui/backends/imgui_impl_glfw.cpp \
-		-o $(IMGUI_OBJ_DIR)/imgui_impl_glfw.o
-	$(CXX) $(CXXFLAGS) \
-		-c third_party/cimgui/imgui/backends/imgui_impl_vulkan.cpp \
-		-o $(IMGUI_OBJ_DIR)/imgui_impl_vulkan.o
-	@echo "[editor] Compiling bridge..."
-	$(CXX) $(CXXFLAGS) -DEDITOR_BUILD \
-		$$(pkg-config --cflags glfw3) \
-		-c engine/editor/ui/imgui_vulkan_bridge.cpp \
-		-o $(IMGUI_OBJ_DIR)/imgui_vulkan_bridge.o
+IMGUI_OBJS    := $(IMGUI_OBJ_DIR)/cimgui.o \
+                 $(IMGUI_OBJ_DIR)/imgui.o \
+                 $(IMGUI_OBJ_DIR)/imgui_demo.o \
+                 $(IMGUI_OBJ_DIR)/imgui_draw.o \
+                 $(IMGUI_OBJ_DIR)/imgui_tables.o \
+                 $(IMGUI_OBJ_DIR)/imgui_widgets.o \
+                 $(IMGUI_OBJ_DIR)/imgui_impl_glfw.o \
+                 $(IMGUI_OBJ_DIR)/imgui_impl_vulkan.o \
+                 $(IMGUI_OBJ_DIR)/imgui_vulkan_bridge.o
+
+$(IMGUI_OBJ_DIR)/%.o: third_party/cimgui/%.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(IMGUI_OBJ_DIR)/%.o: third_party/cimgui/imgui/%.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(IMGUI_OBJ_DIR)/imgui_impl_glfw.o: third_party/cimgui/imgui/backends/imgui_impl_glfw.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) $$(pkg-config --cflags glfw3) -c $< -o $@
+
+$(IMGUI_OBJ_DIR)/imgui_impl_vulkan.o: third_party/cimgui/imgui/backends/imgui_impl_vulkan.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(IMGUI_OBJ_DIR)/imgui_vulkan_bridge.o: engine/editor/ui/imgui_vulkan_bridge.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -DEDITOR_BUILD $$(pkg-config --cflags glfw3) -c $< -o $@
+
+editor: shaders $(IMGUI_OBJS)
 	@echo "[editor] Compiling engine + editor C sources..."
 	$(CC) $(CFLAGS) -DEDITOR_BUILD \
 		-Ithird_party/cimgui -Ithird_party/cimgui/imgui \
 		-o $(EDITOR_BIN) \
 		$(SRC_APP) $(SRC_ENGINE) $(SRC_VULKAN) $(SRC_EDITOR) $(SRC_THIRD_PARTY) \
-		$(IMGUI_OBJ_DIR)/*.o \
+		$(IMGUI_OBJS) \
 		$$(pkg-config --cflags --libs glfw3) -lvulkan \
 		$$(pkg-config --libs lua5.4) -lm -lstdc++
 	@echo "[build] $(EDITOR_BIN) ready (editor — docking ImGui)"

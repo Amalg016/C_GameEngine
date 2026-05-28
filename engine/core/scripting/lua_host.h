@@ -1,6 +1,10 @@
 #ifndef ENGINE_CORE_SCRIPTING_LUA_HOST_H
 #define ENGINE_CORE_SCRIPTING_LUA_HOST_H
 
+#ifdef EDITOR_BUILD
+#include <lua5.4/lua.h>
+#endif
+
 #include "../ecs/ecs.h"
 #include "../asset_manager.h"
 #include "../../renderer/renderer.h"
@@ -126,5 +130,16 @@ void lua_host_scripts_fixed_update(LuaHost *host, double dt);
 /// Release all script instance Lua references (for scene unload).
 /// Does NOT remove the ScriptComponent from the pool — world_clear() does that.
 void lua_host_scripts_clear(LuaHost *host);
+
+// --- Editor-only introspection ---------------------------------------------
+
+#ifdef EDITOR_BUILD
+
+/// Get the raw lua_State pointer for read-only introspection (editor only).
+/// WARNING: Do not modify Lua state through this pointer; use only for
+/// table iteration and value reads in the inspector panel.
+lua_State *lua_host_get_state(LuaHost *host);
+
+#endif // EDITOR_BUILD
 
 #endif // ENGINE_CORE_SCRIPTING_LUA_HOST_H

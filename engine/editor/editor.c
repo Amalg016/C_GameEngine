@@ -3,6 +3,8 @@
 #include "editor.h"
 
 #include "../core/engine.h"
+#include "../core/asset_manager.h"
+#include "../core/scripting/lua_host.h"
 #include "../platform/platform.h"
 #include "../renderer/renderer.h"
 #include "../renderer/vulkan/vulkan_renderer.h"
@@ -219,8 +221,12 @@ void editor_begin_frame(Editor *editor) {
     }
 
     if (editor->show_inspector) {
+        CameraContext *cam_ctx = engine_get_cam_ctx(editor->engine);
+        LuaHost       *lua     = engine_get_lua_host(editor->engine);
+        AssetManager  *am      = engine_get_asset_manager(editor->engine);
+
         panel_inspector_render(&editor->show_inspector,
-                                world, hctx,
+                                world, hctx, cam_ctx, lua, am,
                                 editor->selected_entity,
                                 editor->has_selection);
     }

@@ -518,3 +518,15 @@ void lua_host_scripts_clear(LuaHost *host) {
 
     printf("[script] cleared %u script instance(s)\n", total);
 }
+
+// ---------------------------------------------------------------------------
+// Editor-only introspection
+// ---------------------------------------------------------------------------
+
+#ifdef EDITOR_BUILD
+
+lua_State *lua_host_get_state(LuaHost *host) {
+    return host != nullptr ? host->L : nullptr;
+}
+
+#endif // EDITOR_BUILD

@@ -22,5 +22,9 @@ typedef struct Renderer Renderer;
 /// `fb_w`, `fb_h` — current framebuffer dimensions (for display).
 void panel_game_view_render(bool *p_open, Renderer *renderer, uint32_t fb_w, uint32_t fb_h);
 
+bool panel_game_view_is_focused(void);
+bool panel_game_view_is_hovered(void);
+void panel_game_view_get_content_bounds(float *min_x, float *min_y, float *max_x, float *max_y);
+
 #endif // EDITOR_BUILD
 #endif // ENGINE_EDITOR_PANEL_GAME_VIEW_H

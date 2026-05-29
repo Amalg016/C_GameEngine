@@ -8,6 +8,28 @@
 
 #include <stdio.h>
 
+static bool s_focused = false;
+static bool s_hovered = false;
+static float s_min_x = 0.0f;
+static float s_min_y = 0.0f;
+static float s_max_x = 0.0f;
+static float s_max_y = 0.0f;
+
+bool panel_game_view_is_focused(void) {
+    return s_focused;
+}
+
+bool panel_game_view_is_hovered(void) {
+    return s_hovered;
+}
+
+void panel_game_view_get_content_bounds(float *min_x, float *min_y, float *max_x, float *max_y) {
+    if (min_x) *min_x = s_min_x;
+    if (min_y) *min_y = s_min_y;
+    if (max_x) *max_x = s_max_x;
+    if (max_y) *max_y = s_max_y;
+}
+
 // ---------------------------------------------------------------------------
 // panel_game_view_render
 // ---------------------------------------------------------------------------
@@ -17,6 +39,8 @@ void panel_game_view_render(bool *p_open, Renderer *renderer, uint32_t fb_w, uin
 
     if (!igBegin("Game View", p_open, ImGuiWindowFlags_NoScrollbar |
                                        ImGuiWindowFlags_NoScrollWithMouse)) {
+        s_focused = false;
+        s_hovered = false;
         igEnd();
         igPopStyleVar(1);
         return;
@@ -24,10 +48,17 @@ void panel_game_view_render(bool *p_open, Renderer *renderer, uint32_t fb_w, uin
 
     igPopStyleVar(1);
 
+    s_focused = igIsWindowFocused(0);
+    s_hovered = igIsWindowHovered(0);
+
     // Get the available content region for the game viewport.
     ImVec2 viewport_size = igGetContentRegionAvail();
 
     ImVec2 cursor_pos = igGetCursorScreenPos();
+    s_min_x = cursor_pos.x;
+    s_min_y = cursor_pos.y;
+    s_max_x = cursor_pos.x + viewport_size.x;
+    s_max_y = cursor_pos.y + viewport_size.y;
     ImDrawList *draw_list = igGetWindowDrawList();
 
     // Render the actual game viewport texture from Vulkan offscreen pass.

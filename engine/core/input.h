@@ -100,6 +100,7 @@ typedef struct Input {
     double _prev_mouse_x;
     double _prev_mouse_y;
     bool   _first_mouse;        // true until first mouse move event
+    bool   game_input_active;   // true if gameplay keyboard input is accepted
 } Input;
 
 /// Initialise the input struct to default state.
@@ -154,6 +155,16 @@ static inline bool input_button_pressed(const Input *input, int button) {
 static inline bool input_button_released(const Input *input, int button) {
     return button >= 0 && button < INPUT_MAX_BUTTONS
         && input->buttons_released[button];
+}
+
+static inline void input_set_game_active(Input *input, bool active) {
+    if (input != nullptr) {
+        input->game_input_active = active;
+    }
+}
+
+static inline bool input_is_game_active(const Input *input) {
+    return input != nullptr && input->game_input_active;
 }
 
 #endif // ENGINE_CORE_INPUT_H

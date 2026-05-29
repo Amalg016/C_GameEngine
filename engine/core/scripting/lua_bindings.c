@@ -369,7 +369,7 @@ static int l_remove_script(lua_State *L) {
 static int l_is_key_down(lua_State *L) {
     Input *input = lua_host_get_input(get_host(L));
     int key = (int)luaL_checkinteger(L, 1);
-    lua_pushboolean(L, input != nullptr && input_key_down(input, key));
+    lua_pushboolean(L, input != nullptr && input_is_game_active(input) && input_key_down(input, key));
     return 1;
 }
 
@@ -377,7 +377,7 @@ static int l_is_key_down(lua_State *L) {
 static int l_is_key_pressed(lua_State *L) {
     Input *input = lua_host_get_input(get_host(L));
     int key = (int)luaL_checkinteger(L, 1);
-    lua_pushboolean(L, input != nullptr && input_key_pressed(input, key));
+    lua_pushboolean(L, input != nullptr && input_is_game_active(input) && input_key_pressed(input, key));
     return 1;
 }
 
@@ -385,7 +385,7 @@ static int l_is_key_pressed(lua_State *L) {
 static int l_is_key_released(lua_State *L) {
     Input *input = lua_host_get_input(get_host(L));
     int key = (int)luaL_checkinteger(L, 1);
-    lua_pushboolean(L, input != nullptr && input_key_released(input, key));
+    lua_pushboolean(L, input != nullptr && input_is_game_active(input) && input_key_released(input, key));
     return 1;
 }
 

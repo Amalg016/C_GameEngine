@@ -9,6 +9,7 @@
 void input_init(Input *input) {
     *input = (Input){};
     input->_first_mouse = true;
+    input->game_input_active = true;
 }
 
 void input_begin_frame(Input *input) {

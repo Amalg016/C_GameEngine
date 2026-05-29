@@ -10,9 +10,61 @@
 #include <stdio.h>
 
 // ---------------------------------------------------------------------------
+// draw_entity_node
+// ---------------------------------------------------------------------------
+static void draw_entity_node(World *world,
+                             const HierarchyContext *hctx,
+                             Entity ent,
+                             uint32_t ent_idx,
+                             uint32_t *selected_entity,
+                             bool *has_selection) {
+    Hierarchy *hier = (Hierarchy *)world_get_component(world, ent, hctx->c_hierarchy);
+    bool has_children = (hier != nullptr && hier->first_child != ENTITY_INVALID);
+
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
+    if (!has_children) {
+        flags |= ImGuiTreeNodeFlags_Leaf;
+    }
+    if (*has_selection && *selected_entity == ent_idx) {
+        flags |= ImGuiTreeNodeFlags_Selected;
+    }
+
+    char label[64];
+    snprintf(label, sizeof(label), "Entity %u", ent_idx);
+
+    bool node_open = igTreeNodeEx_Ptr((const void *)(uintptr_t)ent_idx, flags, "%s", label);
+
+    if (igIsItemClicked(ImGuiMouseButton_Left)) {
+        *selected_entity = ent_idx;
+        *has_selection = true;
+    }
+
+    // ---- Drag source: entity payload --------------------------------
+    if (igBeginDragDropSource(0)) {
+        igSetDragDropPayload("ENTITY", &ent_idx, sizeof(uint32_t), 0);
+        igText("Entity %u", ent_idx);
+        igEndDragDropSource();
+    }
+
+    if (node_open) {
+        if (has_children) {
+            Entity child = hier->first_child;
+            while (child != ENTITY_INVALID) {
+                uint32_t child_idx = entity_index(child);
+                draw_entity_node(world, hctx, child, child_idx, selected_entity, has_selection);
+
+                Hierarchy *child_hier = (Hierarchy *)world_get_component(world, child, hctx->c_hierarchy);
+                if (child_hier == nullptr) break;
+                child = child_hier->next_sibling;
+            }
+        }
+        igTreePop();
+    }
+}
+
+// ---------------------------------------------------------------------------
 // panel_hierarchy_render
 // ---------------------------------------------------------------------------
-
 void panel_hierarchy_render(bool *p_open,
                             World *world,
                             const HierarchyContext *hctx,
@@ -44,31 +96,14 @@ void panel_hierarchy_render(bool *p_open,
 
         if (ent == ENTITY_INVALID) continue;
 
-        // Build a display label.  Check for hierarchy (parent-child).
-        Hierarchy *hier = (Hierarchy *)world_get_component(
-            world, ent, hctx->c_hierarchy);
-
-        char label[64];
+        // Only draw root entities at the top level of the hierarchy tree.
+        // Child entities are rendered recursively inside their parents.
+        Hierarchy *hier = (Hierarchy *)world_get_component(world, ent, hctx->c_hierarchy);
         if (hier != nullptr && hier->parent != ENTITY_INVALID) {
-            snprintf(label, sizeof(label), "  Entity %u (child)", ent_idx);
-        } else {
-            snprintf(label, sizeof(label), "Entity %u", ent_idx);
+            continue;
         }
 
-        // Highlight the selected entity.
-        bool is_selected = (*has_selection && *selected_entity == ent_idx);
-
-        if (igSelectable_Bool(label, is_selected, 0, (ImVec2){ 0, 0 })) {
-            *selected_entity = ent_idx;
-            *has_selection    = true;
-        }
-
-        // ---- Drag source: entity payload --------------------------------
-        if (igBeginDragDropSource(0)) {
-            igSetDragDropPayload("ENTITY", &ent_idx, sizeof(uint32_t), 0);
-            igText("Entity %u", ent_idx);
-            igEndDragDropSource();
-        }
+        draw_entity_node(world, hctx, ent, ent_idx, selected_entity, has_selection);
     }
 
     // Click on empty space to deselect.

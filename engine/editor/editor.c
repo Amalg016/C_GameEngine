@@ -9,6 +9,7 @@
 #include "../renderer/renderer.h"
 #include "../renderer/vulkan/vulkan_renderer.h"
 #include "../core/ecs/ecs.h"
+#include "../core/input.h"
 
 #include "ui/imgui_layer.h"
 #include "ui/imgui_vulkan_bridge.h"
@@ -245,6 +246,55 @@ void editor_begin_frame(Editor *editor) {
         uint32_t fb_w = 800, fb_h = 600;
         platform_get_framebuffer_size(plat, &fb_w, &fb_h);
         panel_game_view_render(&editor->show_game_view, rend, fb_w, fb_h);
+    }
+
+    Input *input = engine_get_input(editor->engine);
+    if (input != nullptr) {
+        input_set_game_active(input, panel_game_view_is_focused());
+    }
+
+    if (panel_game_view_is_hovered() && igIsMouseClicked_Bool(0, false)) {
+        float min_x = 0, min_y = 0, max_x = 0, max_y = 0;
+        panel_game_view_get_content_bounds(&min_x, &min_y, &max_x, &max_y);
+
+        ImVec2_c mouse_pos_c = igGetMousePos();
+        ImVec2 mouse_pos = { mouse_pos_c.x, mouse_pos_c.y };
+
+        float image_w = max_x - min_x;
+        float image_h = max_y - min_y;
+
+        if (image_w > 0.0f && image_h > 0.0f) {
+            float local_x = mouse_pos.x - min_x;
+            float local_y = mouse_pos.y - min_y;
+
+            if (local_x >= 0.0f && local_x < image_w && local_y >= 0.0f && local_y < image_h) {
+                Renderer *rend = engine_get_renderer(editor->engine);
+                uint32_t offscreen_w = 0, offscreen_h = 0;
+                vulkan_renderer_get_offscreen_size(rend, &offscreen_w, &offscreen_h);
+
+                if (offscreen_w > 0 && offscreen_h > 0) {
+                    float norm_x = local_x / image_w;
+                    float norm_y = local_y / image_h;
+
+                    uint32_t pixel_x = (uint32_t)(norm_x * offscreen_w);
+                    uint32_t pixel_y = (uint32_t)(norm_y * offscreen_h);
+
+                    if (pixel_x >= offscreen_w) pixel_x = offscreen_w - 1;
+                    if (pixel_y >= offscreen_h) pixel_y = offscreen_h - 1;
+
+                    uint32_t picked_entity = vulkan_renderer_pick_entity(rend, pixel_x, pixel_y);
+
+                    if (picked_entity != 0) {
+                        editor->selected_entity = entity_index(picked_entity);
+                        editor->has_selection = true;
+                        console_log("[editor] Selected entity %u via GPU picking", editor->selected_entity);
+                    } else {
+                        editor->has_selection = false;
+                        console_log("[editor] Selection cleared");
+                    }
+                }
+            }
+        }
     }
 
     if (editor->show_demo_window) {

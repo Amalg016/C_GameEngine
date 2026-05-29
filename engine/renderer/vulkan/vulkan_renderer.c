@@ -513,14 +513,23 @@ static bool vulkan_begin_frame(Renderer *self) {
 
     // Begin render pass.
 #ifdef EDITOR_BUILD
-    VkClearValue offscreen_clear = {.color = {{0.0f, 0.0f, 0.0f, 0.0f}}};
+    VkClearValue offscreen_clears[2];
+    offscreen_clears[0].color.float32[0] = 0.0f;
+    offscreen_clears[0].color.float32[1] = 0.0f;
+    offscreen_clears[0].color.float32[2] = 0.0f;
+    offscreen_clears[0].color.float32[3] = 0.0f;
+    offscreen_clears[1].color.uint32[0] = 0;
+    offscreen_clears[1].color.uint32[1] = 0;
+    offscreen_clears[1].color.uint32[2] = 0;
+    offscreen_clears[1].color.uint32[3] = 0;
+
     VkRenderPassBeginInfo rp_info = {
         .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .renderPass  = ctx->offscreen_render_pass,
         .framebuffer = ctx->offscreen_framebuffer,
         .renderArea  = {.offset = {0, 0}, .extent = {ctx->offscreen_w, ctx->offscreen_h}},
-        .clearValueCount = 1,
-        .pClearValues    = &offscreen_clear,
+        .clearValueCount = 2,
+        .pClearValues    = offscreen_clears,
     };
 
     vkCmdBeginRenderPass(cmd, &rp_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -592,11 +601,12 @@ static void vulkan_draw_quad(Renderer *self) {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx->graphics_pipeline);
 
-    // Push constants: mat4 view_proj + vec2 scale + vec2 translate.
-    struct { float vp[16]; float scale[2]; float translate[2]; } pc;
+    // Push constants: mat4 view_proj + vec2 scale + vec2 translate + uint32_t entity_id.
+    struct { float vp[16]; float scale[2]; float translate[2]; uint32_t entity_id; } pc;
     memcpy(pc.vp, ctx->view_proj, sizeof(pc.vp));
     pc.scale[0] = 1.0f;  pc.scale[1] = 1.0f;
     pc.translate[0] = 0.0f;  pc.translate[1] = 0.0f;
+    pc.entity_id = 0;
     vkCmdPushConstants(cmd, ctx->pipeline_layout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
 
@@ -619,7 +629,8 @@ static void vulkan_draw_quad(Renderer *self) {
 
 /// Draw a textured sprite at (x, y) with size (w, h) in world space.
 static void vulkan_draw_sprite(Renderer *self,
-                                float x, float y, float w, float h) {
+                                float x, float y, float w, float h,
+                                uint32_t entity_index) {
     VulkanContext *ctx = (VulkanContext *)self->backend_data;
     uint32_t frame = ctx->current_frame;
     VkCommandBuffer cmd = ctx->command_buffers[frame];
@@ -627,11 +638,12 @@ static void vulkan_draw_sprite(Renderer *self,
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx->graphics_pipeline);
 
-    // Push constants: mat4 view_proj + vec2 scale + vec2 translate.
-    struct { float vp[16]; float scale[2]; float translate[2]; } pc;
+    // Push constants: mat4 view_proj + vec2 scale + vec2 translate + uint32_t entity_id.
+    struct { float vp[16]; float scale[2]; float translate[2]; uint32_t entity_id; } pc;
     memcpy(pc.vp, ctx->view_proj, sizeof(pc.vp));
     pc.scale[0] = w;  pc.scale[1] = h;
     pc.translate[0] = x;  pc.translate[1] = y;
+    pc.entity_id = entity_index;
     vkCmdPushConstants(cmd, ctx->pipeline_layout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
 
@@ -855,10 +867,6 @@ static void vulkan_offscreen_destroy(VulkanContext *ctx) {
         vkDestroyFramebuffer(ctx->device, ctx->offscreen_framebuffer, nullptr);
         ctx->offscreen_framebuffer = VK_NULL_HANDLE;
     }
-    if (ctx->offscreen_render_pass != VK_NULL_HANDLE) {
-        vkDestroyRenderPass(ctx->device, ctx->offscreen_render_pass, nullptr);
-        ctx->offscreen_render_pass = VK_NULL_HANDLE;
-    }
     if (ctx->offscreen_sampler != VK_NULL_HANDLE) {
         vkDestroySampler(ctx->device, ctx->offscreen_sampler, nullptr);
         ctx->offscreen_sampler = VK_NULL_HANDLE;
@@ -875,6 +883,23 @@ static void vulkan_offscreen_destroy(VulkanContext *ctx) {
         vkFreeMemory(ctx->device, ctx->offscreen_image_memory, nullptr);
         ctx->offscreen_image_memory = VK_NULL_HANDLE;
     }
+    if (ctx->picking_image_view != VK_NULL_HANDLE) {
+        vkDestroyImageView(ctx->device, ctx->picking_image_view, nullptr);
+        ctx->picking_image_view = VK_NULL_HANDLE;
+    }
+    if (ctx->picking_image != VK_NULL_HANDLE) {
+        vkDestroyImage(ctx->device, ctx->picking_image, nullptr);
+        ctx->picking_image = VK_NULL_HANDLE;
+    }
+    if (ctx->picking_image_memory != VK_NULL_HANDLE) {
+        vkFreeMemory(ctx->device, ctx->picking_image_memory, nullptr);
+        ctx->picking_image_memory = VK_NULL_HANDLE;
+    }
+    if (ctx->picking_staging_buffer != VK_NULL_HANDLE) {
+        vulkan_buffer_destroy(ctx, ctx->picking_staging_buffer, ctx->picking_staging_buffer_memory);
+        ctx->picking_staging_buffer = VK_NULL_HANDLE;
+        ctx->picking_staging_buffer_memory = VK_NULL_HANDLE;
+    }
 }
 
 static bool vulkan_offscreen_create(VulkanContext *ctx, uint32_t width, uint32_t height) {
@@ -883,6 +908,7 @@ static bool vulkan_offscreen_create(VulkanContext *ctx, uint32_t width, uint32_t
     ctx->offscreen_w = width;
     ctx->offscreen_h = height;
 
+    // --- Color image ---
     VkImageCreateInfo image_info = {
         .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType     = VK_IMAGE_TYPE_2D,
@@ -964,49 +990,79 @@ static bool vulkan_offscreen_create(VulkanContext *ctx, uint32_t width, uint32_t
         return false;
     }
 
-    VkAttachmentDescription color_attachment = {
-        .format         = ctx->swapchain.image_format,
-        .samples        = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
-        .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    // --- Picking image ---
+    VkImageCreateInfo picking_info = {
+        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType     = VK_IMAGE_TYPE_2D,
+        .format        = VK_FORMAT_R32_UINT,
+        .extent        = { .width = width, .height = height, .depth = 1 },
+        .mipLevels     = 1,
+        .arrayLayers   = 1,
+        .samples       = VK_SAMPLE_COUNT_1_BIT,
+        .tiling        = VK_IMAGE_TILING_OPTIMAL,
+        .usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
 
-    VkAttachmentReference color_attachment_ref = {
-        .attachment = 0,
-        .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    if (vkCreateImage(ctx->device, &picking_info, nullptr, &ctx->picking_image) != VK_SUCCESS) {
+        fprintf(stderr, "[vulkan] failed to create picking image\n");
+        vulkan_offscreen_destroy(ctx);
+        return false;
+    }
+
+    VkMemoryRequirements pick_reqs;
+    vkGetImageMemoryRequirements(ctx->device, ctx->picking_image, &pick_reqs);
+
+    uint32_t pick_mem_type = vulkan_find_memory_type(ctx->physical_device,
+                                                    pick_reqs.memoryTypeBits,
+                                                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (pick_mem_type == UINT32_MAX) {
+        vulkan_offscreen_destroy(ctx);
+        return false;
+    }
+
+    VkMemoryAllocateInfo pick_alloc = {
+        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize  = pick_reqs.size,
+        .memoryTypeIndex = pick_mem_type,
     };
 
-    VkSubpassDescription subpass = {
-        .pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS,
-        .colorAttachmentCount = 1,
-        .pColorAttachments    = &color_attachment_ref,
+    if (vkAllocateMemory(ctx->device, &pick_alloc, nullptr, &ctx->picking_image_memory) != VK_SUCCESS) {
+        fprintf(stderr, "[vulkan] failed to allocate picking image memory\n");
+        vulkan_offscreen_destroy(ctx);
+        return false;
+    }
+
+    vkBindImageMemory(ctx->device, ctx->picking_image, ctx->picking_image_memory, 0);
+
+    VkImageViewCreateInfo pick_view_info = {
+        .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image    = ctx->picking_image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format   = VK_FORMAT_R32_UINT,
+        .subresourceRange = {
+            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel   = 0,
+            .levelCount     = 1,
+            .baseArrayLayer = 0,
+            .layerCount     = 1,
+        },
     };
 
-    VkSubpassDependency dependency = {
-        .srcSubpass    = VK_SUBPASS_EXTERNAL,
-        .dstSubpass    = 0,
-        .srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .srcAccessMask = 0,
-        .dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-    };
+    if (vkCreateImageView(ctx->device, &pick_view_info, nullptr, &ctx->picking_image_view) != VK_SUCCESS) {
+        fprintf(stderr, "[vulkan] failed to create picking image view\n");
+        vulkan_offscreen_destroy(ctx);
+        return false;
+    }
 
-    VkRenderPassCreateInfo render_pass_info = {
-        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .attachmentCount = 1,
-        .pAttachments    = &color_attachment,
-        .subpassCount    = 1,
-        .pSubpasses      = &subpass,
-        .dependencyCount = 1,
-        .pDependencies   = &dependency,
-    };
-
-    if (vkCreateRenderPass(ctx->device, &render_pass_info, nullptr, &ctx->offscreen_render_pass) != VK_SUCCESS) {
-        fprintf(stderr, "[vulkan] failed to create offscreen render pass\n");
+    // --- Picking Staging Buffer ---
+    if (!vulkan_buffer_create(ctx, sizeof(uint32_t),
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                               &ctx->picking_staging_buffer,
+                               &ctx->picking_staging_buffer_memory)) {
+        fprintf(stderr, "[vulkan] failed to create picking staging buffer\n");
         vulkan_offscreen_destroy(ctx);
         return false;
     }
@@ -1014,8 +1070,8 @@ static bool vulkan_offscreen_create(VulkanContext *ctx, uint32_t width, uint32_t
     VkFramebufferCreateInfo framebuffer_info = {
         .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         .renderPass      = ctx->offscreen_render_pass,
-        .attachmentCount = 1,
-        .pAttachments    = &ctx->offscreen_image_view,
+        .attachmentCount = 2,
+        .pAttachments    = (VkImageView[]){ ctx->offscreen_image_view, ctx->picking_image_view },
         .width           = width,
         .height          = height,
         .layers          = 1,
@@ -1076,6 +1132,56 @@ void *vulkan_renderer_get_editor_viewport_texture(Renderer *r) {
                                                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
     return ctx->offscreen_descriptor_set;
+}
+
+void vulkan_renderer_get_offscreen_size(Renderer *r, uint32_t *w, uint32_t *h) {
+    VulkanContext *ctx = (VulkanContext *)r->backend_data;
+    if (ctx != nullptr) {
+        if (w != nullptr) *w = ctx->offscreen_w;
+        if (h != nullptr) *h = ctx->offscreen_h;
+    }
+}
+
+uint32_t vulkan_renderer_pick_entity(Renderer *r, uint32_t x, uint32_t y) {
+    VulkanContext *ctx = (VulkanContext *)r->backend_data;
+    if (ctx == nullptr || ctx->picking_image == VK_NULL_HANDLE || ctx->picking_staging_buffer == VK_NULL_HANDLE) {
+        return 0; // ENTITY_INVALID
+    }
+
+    if (x >= ctx->offscreen_w || y >= ctx->offscreen_h) {
+        return 0; // ENTITY_INVALID
+    }
+
+    VkCommandBuffer cmd = vulkan_begin_single_command(ctx);
+
+    VkBufferImageCopy region = {
+        .bufferOffset      = 0,
+        .bufferRowLength   = 0,
+        .bufferImageHeight = 0,
+        .imageSubresource = {
+            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mipLevel       = 0,
+            .baseArrayLayer = 0,
+            .layerCount     = 1,
+        },
+        .imageOffset = { .x = (int32_t)x, .y = (int32_t)y, .z = 0 },
+        .imageExtent = { .width = 1, .height = 1, .depth = 1 },
+    };
+
+    vkCmdCopyImageToBuffer(cmd, ctx->picking_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           ctx->picking_staging_buffer, 1, &region);
+
+    vulkan_end_single_command(ctx, cmd);
+
+    void *data = nullptr;
+    vkMapMemory(ctx->device, ctx->picking_staging_buffer_memory, 0, sizeof(uint32_t), 0, &data);
+    uint32_t picked_id = 0; // ENTITY_INVALID
+    if (data != nullptr) {
+        picked_id = *(uint32_t *)data;
+        vkUnmapMemory(ctx->device, ctx->picking_staging_buffer_memory);
+    }
+
+    return picked_id;
 }
 
 #endif // EDITOR_BUILD

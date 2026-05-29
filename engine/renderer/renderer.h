@@ -2,6 +2,7 @@
 #define ENGINE_RENDERER_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 // ---------------------------------------------------------------------------
 // Renderer abstraction layer
@@ -37,7 +38,7 @@ typedef struct RendererAPI {
 
     /// Draw a textured quad at (x, y) with size (w, h) in NDC.
     /// The currently bound texture is used.
-    void (*draw_sprite)(Renderer *self, float x, float y, float w, float h);
+    void (*draw_sprite)(Renderer *self, float x, float y, float w, float h, uint32_t entity_index);
 
     // --- Asset loading callbacks (used by the asset manager) ---------------
     /// Load a texture from `path`.  Returns a heap-allocated opaque pointer
@@ -78,7 +79,7 @@ bool  renderer_begin_frame(Renderer *r);
 void  renderer_end_frame(Renderer *r);
 void  renderer_draw_quad(Renderer *r);
 void  renderer_set_view_projection(Renderer *r, const float *mat4x4);
-void  renderer_draw_sprite(Renderer *r, float x, float y, float w, float h);
+void  renderer_draw_sprite(Renderer *r, float x, float y, float w, float h, uint32_t entity_index);
 
 void *renderer_load_texture(Renderer *r, const char *path);
 void  renderer_destroy_texture(Renderer *r, void *gpu_data);

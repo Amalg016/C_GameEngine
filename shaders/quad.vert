@@ -10,11 +10,13 @@ layout(push_constant) uniform PushConstants {
     mat4 view_proj;
     vec2 scale;
     vec2 translate;
+    uint entity_id;
 } pc;
 
 // Outputs to the fragment shader.
 layout(location = 0) out vec3 frag_color;
 layout(location = 1) out vec2 frag_uv;
+layout(location = 2) flat out uint frag_entity_id;
 
 void main() {
     // Transform the unit quad to world space, then apply view-projection.
@@ -22,4 +24,5 @@ void main() {
     gl_Position = pc.view_proj * vec4(world_pos, 0.0, 1.0);
     frag_color  = in_color;
     frag_uv     = in_uv;
+    frag_entity_id = pc.entity_id;
 }

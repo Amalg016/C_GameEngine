@@ -138,7 +138,7 @@ static void system_sprite_render(AppState *app, float alpha) {
         renderer_bind_texture(app->renderer, gpu_data);
 
         // Draw at interpolated world position with world scale.
-        renderer_draw_sprite(app->renderer, render_x, render_y, wt->sx, wt->sy);
+        renderer_draw_sprite(app->renderer, render_x, render_y, wt->sx, wt->sy, ent);
     }
 }
 

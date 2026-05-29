@@ -105,6 +105,75 @@ static bool create_render_pass(VulkanContext *ctx) {
     return true;
 }
 
+#ifdef EDITOR_BUILD
+static bool create_offscreen_render_pass(VulkanContext *ctx) {
+    VkAttachmentDescription attachments[2] = {
+        { // Color attachment
+            .format         = ctx->swapchain.image_format,
+            .samples        = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        },
+        { // Picking attachment
+            .format         = VK_FORMAT_R32_UINT,
+            .samples        = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout    = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        }
+    };
+
+    VkAttachmentReference color_ref = {
+        .attachment = 0,
+        .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    };
+
+    VkAttachmentReference picking_ref = {
+        .attachment = 1,
+        .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    };
+
+    VkSubpassDescription subpass = {
+        .pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .colorAttachmentCount = 2,
+        .pColorAttachments    = (VkAttachmentReference[]){ color_ref, picking_ref },
+    };
+
+    VkSubpassDependency dependency = {
+        .srcSubpass    = VK_SUBPASS_EXTERNAL,
+        .dstSubpass    = 0,
+        .srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcAccessMask = 0,
+        .dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    };
+
+    VkRenderPassCreateInfo ci = {
+        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+        .attachmentCount = 2,
+        .pAttachments    = attachments,
+        .subpassCount    = 1,
+        .pSubpasses      = &subpass,
+        .dependencyCount = 1,
+        .pDependencies   = &dependency,
+    };
+
+    if (vkCreateRenderPass(ctx->device, &ci, nullptr,
+                           &ctx->offscreen_render_pass) != VK_SUCCESS) {
+        fprintf(stderr, "[vulkan] failed to create offscreen render pass\n");
+        return false;
+    }
+    return true;
+}
+#endif
+
 // ---------------------------------------------------------------------------
 // Descriptor set layout
 // ---------------------------------------------------------------------------
@@ -143,6 +212,9 @@ bool vulkan_pipeline_create(VulkanContext *ctx,
                             const char *vert_path,
                             const char *frag_path) {
     if (!create_render_pass(ctx)) return false;
+#ifdef EDITOR_BUILD
+    if (!create_offscreen_render_pass(ctx)) return false;
+#endif
     if (!create_descriptor_set_layout(ctx)) return false;
 
     // Load SPIR-V.
@@ -253,6 +325,31 @@ bool vulkan_pipeline_create(VulkanContext *ctx,
         .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
     };
 
+#ifdef EDITOR_BUILD
+    VkPipelineColorBlendAttachmentState blend_atts[2] = {
+        {
+            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                              VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .blendEnable         = VK_TRUE,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .colorBlendOp        = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+            .alphaBlendOp        = VK_BLEND_OP_ADD,
+        },
+        {
+            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT,
+            .blendEnable    = VK_FALSE,
+        }
+    };
+
+    VkPipelineColorBlendStateCreateInfo blend = {
+        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .attachmentCount = 2,
+        .pAttachments    = blend_atts,
+    };
+#else
     VkPipelineColorBlendAttachmentState blend_att = {
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
@@ -270,12 +367,13 @@ bool vulkan_pipeline_create(VulkanContext *ctx,
         .attachmentCount = 1,
         .pAttachments    = &blend_att,
     };
+#endif
 
-    // Push constant range: 80 bytes (mat4 view_proj + vec2 scale + vec2 translate).
+    // Push constant range: 84 bytes (mat4 view_proj + vec2 scale + vec2 translate + uint entity_id).
     VkPushConstantRange push_range = {
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
         .offset     = 0,
-        .size       = 16 * sizeof(float) + 4 * sizeof(float),  // mat4(64) + scale+translate(16) = 80
+        .size       = 16 * sizeof(float) + 4 * sizeof(float) + sizeof(uint32_t),  // 84
     };
 
     // Pipeline layout now references the descriptor set layout + push constants.
@@ -307,7 +405,11 @@ bool vulkan_pipeline_create(VulkanContext *ctx,
         .pColorBlendState    = &blend,
         .pDynamicState       = &dynamic_state,
         .layout              = ctx->pipeline_layout,
+#ifdef EDITOR_BUILD
+        .renderPass          = ctx->offscreen_render_pass,
+#else
         .renderPass          = ctx->render_pass,
+#endif
         .subpass             = 0,
     };
 
@@ -346,6 +448,12 @@ void vulkan_pipeline_destroy(VulkanContext *ctx) {
         vkDestroyRenderPass(ctx->device, ctx->render_pass, nullptr);
         ctx->render_pass = VK_NULL_HANDLE;
     }
+#ifdef EDITOR_BUILD
+    if (ctx->offscreen_render_pass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(ctx->device, ctx->offscreen_render_pass, nullptr);
+        ctx->offscreen_render_pass = VK_NULL_HANDLE;
+    }
+#endif
 }
 
 // ---------------------------------------------------------------------------

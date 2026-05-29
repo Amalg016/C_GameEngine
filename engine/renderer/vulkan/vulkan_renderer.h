@@ -51,6 +51,12 @@ void vulkan_renderer_transition_to_editor(Renderer *r);
 /// Get the descriptor set representing the offscreen game viewport texture.
 void *vulkan_renderer_get_editor_viewport_texture(Renderer *r);
 
+/// Get the offscreen game viewport width and height.
+void vulkan_renderer_get_offscreen_size(Renderer *r, uint32_t *w, uint32_t *h);
+
+/// Perform GPU-based entity picking at offscreen coordinates (x, y).
+uint32_t vulkan_renderer_pick_entity(Renderer *r, uint32_t x, uint32_t y);
+
 #endif // EDITOR_BUILD
 
 #endif // VULKAN_RENDERER_H

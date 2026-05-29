@@ -121,6 +121,13 @@ typedef struct VulkanContext {
     VkDescriptorSet          offscreen_descriptor_set;
     uint32_t                 offscreen_w;
     uint32_t                 offscreen_h;
+
+    // --- GPU picking ---
+    VkImage                  picking_image;
+    VkDeviceMemory           picking_image_memory;
+    VkImageView              picking_image_view;
+    VkBuffer                 picking_staging_buffer;
+    VkDeviceMemory           picking_staging_buffer_memory;
 #endif
 
     // --- back-pointer to GLFW window (cast from void*) ---

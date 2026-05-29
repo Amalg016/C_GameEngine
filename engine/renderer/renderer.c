@@ -75,9 +75,9 @@ void renderer_set_view_projection(Renderer *r, const float *mat4x4) {
     }
 }
 
-void renderer_draw_sprite(Renderer *r, float x, float y, float w, float h) {
+void renderer_draw_sprite(Renderer *r, float x, float y, float w, float h, uint32_t entity_index) {
     if (r != nullptr && r->api.draw_sprite != nullptr) {
-        r->api.draw_sprite(r, x, y, w, h);
+        r->api.draw_sprite(r, x, y, w, h, entity_index);
     }
 }
 

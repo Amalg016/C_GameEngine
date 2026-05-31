@@ -23,3 +23,8 @@ engine_web.wasm
 # OS files
 .DS_Store
 Thumbs.db
+
+# Project-specific ignores
+engine_editor
+.antigravitycli/
+issues/

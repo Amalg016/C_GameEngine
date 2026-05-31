@@ -452,6 +452,76 @@ void panel_inspector_render(bool *p_open,
         }
     }
 
+    // ---- Animator ---------------------------------------------------------
+    if (lua_host != nullptr && lua_host_animator_registered(lua_host)) {
+        ComponentId c_anim = lua_host_get_animator_id(lua_host);
+        InspectorAnimator *ia = (InspectorAnimator *)world_get_component(
+            world, ent, c_anim);
+
+        if (ia != nullptr) {
+            if (igCollapsingHeader_BoolPtr("Animator", nullptr,
+                                           ImGuiTreeNodeFlags_DefaultOpen)) {
+                // Animation file path.
+                igText("Animation:");
+                igSameLine(0.0f, 4.0f);
+                igTextDisabled("%s",
+                    ia->animator.anim_path[0] != '\0'
+                        ? ia->animator.anim_path
+                        : "(none)");
+
+                // Clip selector.
+                if (ia->animator.anim_data != nullptr &&
+                    ia->animator.anim_data->clip_count > 0) {
+                    AnimData *ad = ia->animator.anim_data;
+
+                    // Current clip name for preview label.
+                    const char *current_name = "(none)";
+                    if (ia->animator.current_clip < ad->clip_count) {
+                        current_name = ad->clips[ia->animator.current_clip].name;
+                    }
+
+                    igText("Clip:");
+                    igSameLine(0.0f, 4.0f);
+                    igSetNextItemWidth(150.0f);
+                    if (igBeginCombo("##anim_clip", current_name, 0)) {
+                        for (uint32_t c = 0; c < ad->clip_count; ++c) {
+                            bool is_sel = (c == ia->animator.current_clip);
+                            if (igSelectable_Bool(ad->clips[c].name, is_sel,
+                                                  0, (ImVec2){ 0, 0 })) {
+                                animator_play(&ia->animator, ad->clips[c].name);
+                            }
+                        }
+                        igEndCombo();
+                    }
+
+                    // Play / Stop buttons.
+                    igSameLine(0.0f, 12.0f);
+                    if (ia->animator.playing) {
+                        if (igButton("Stop##anim", (ImVec2){ 50, 0 })) {
+                            animator_stop(&ia->animator);
+                        }
+                    } else {
+                        if (igButton("Play##anim", (ImVec2){ 50, 0 })) {
+                            ia->animator.playing = true;
+                        }
+                    }
+
+                    // Status.
+                    if (ia->animator.current_clip < ad->clip_count) {
+                        AnimClip *clip = &ad->clips[ia->animator.current_clip];
+                        igText("Frame: %u / %u  |  FPS: %.0f  |  %s",
+                               ia->animator.current_frame,
+                               clip->frame_count,
+                               clip->fps,
+                               ia->animator.playing ? "Playing"
+                                                    : (ia->animator.finished ? "Finished" : "Stopped"));
+                    }
+                } else {
+                    igTextDisabled("No animation data loaded.");
+                }
+            }
+        }
+    }
 
     // ---- Hierarchy info ---------------------------------------------------
     Hierarchy *hier = (Hierarchy *)world_get_component(

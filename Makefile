@@ -31,6 +31,8 @@ SRC_ENGINE := engine/renderer/renderer.c \
               engine/core/scene.c \
               engine/core/sprite.c \
               engine/core/sprite_meta.c \
+              engine/core/animation.c \
+              engine/core/anim_cache.c \
               engine/core/ecs/component_pool.c \
               engine/core/ecs/world.c \
               engine/core/ecs/hierarchy.c \

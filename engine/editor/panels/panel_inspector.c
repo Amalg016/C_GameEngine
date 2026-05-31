@@ -8,6 +8,8 @@
 #include "../../core/ecs/ecs.h"
 #include "../../core/asset_manager.h"
 #include "../../core/sprite.h"
+#include "../../core/sprite_meta.h"
+#include "../../core/animation.h"
 #include "../../core/scripting/lua_host.h"
 
 #include <lua5.4/lua.h>
@@ -26,6 +28,8 @@ extern bool        lua_host_velocity_registered(LuaHost *host);
 extern ComponentId lua_host_get_velocity_id(LuaHost *host);
 extern ComponentId lua_host_get_script_id(LuaHost *host);
 extern bool        lua_host_script_registered(LuaHost *host);
+extern bool        lua_host_animator_registered(LuaHost *host);
+extern ComponentId lua_host_get_animator_id(LuaHost *host);
 
 // ---------------------------------------------------------------------------
 // Component structs — must mirror the layouts in lua_bindings.c / scene.c.
@@ -38,6 +42,10 @@ typedef struct InspectorSprite {
 typedef struct InspectorVelocity {
     float dx, dy;
 } InspectorVelocity;
+
+typedef struct InspectorAnimator {
+    Animator animator;
+} InspectorAnimator;
 
 // ---------------------------------------------------------------------------
 // Helper — check if a Lua key should be hidden from the inspector.
@@ -260,17 +268,110 @@ void panel_inspector_render(bool *p_open,
             world, ent, c_sprite);
 
         if (spr != nullptr) {
-            if (igCollapsingHeader_BoolPtr("Sprite", nullptr,
-                                           ImGuiTreeNodeFlags_DefaultOpen)) {
-                // Display texture path (read-only).
+            bool header_open = igCollapsingHeader_BoolPtr(
+                "Sprite", nullptr, ImGuiTreeNodeFlags_DefaultOpen);
+
+            // ---- Drop target on the header (works even when collapsed) ----
+            if (igBeginDragDropTarget()) {
+                const ImGuiPayload *rp =
+                    igAcceptDragDropPayload(SPRITE_REGION_DRAG_TYPE, 0);
+                if (rp != nullptr &&
+                    rp->DataSize == sizeof(SpriteDragPayload)) {
+                    const SpriteDragPayload *drop =
+                        (const SpriteDragPayload *)rp->Data;
+                    // Load texture (cache-hit = refcount++ only, no Vulkan).
+                    // NOTE: we intentionally do NOT release the old handle
+                    // here to avoid vkDeviceWaitIdle inside the render pass.
+                    AssetHandle h =
+                        asset_manager_load_texture(am, drop->texture_path);
+                    if (h != ASSET_HANDLE_INVALID) {
+                        uint32_t tw = 0, th = 0;
+                        asset_manager_get_texture_size(am, h, &tw, &th);
+                        spr->sprite = sprite_from_sheet(h, tw, th,
+                                                        drop->rect);
+                    }
+                }
+                const ImGuiPayload *ap =
+                    igAcceptDragDropPayload("ASSET_PATH", 0);
+                if (ap != nullptr && am != nullptr) {
+                    const char *path = (const char *)ap->Data;
+                    if (path != nullptr) {
+                        AssetHandle h =
+                            asset_manager_load_texture(am, path);
+                        if (h != ASSET_HANDLE_INVALID) {
+                            uint32_t tw = 0, th = 0;
+                            asset_manager_get_texture_size(am, h, &tw, &th);
+                            spr->sprite = sprite_from_texture(h, tw, th);
+                        }
+                    }
+                }
+                igEndDragDropTarget();
+            }
+
+            if (header_open) {
+                // ---- Texture field (interactive — accepts drops) -----------
                 const char *tex_path = nullptr;
                 if (am != nullptr) {
                     tex_path = asset_manager_get_path(am, spr->sprite.texture);
                 }
+
+                igText("Texture");
+                igSameLine(0.0f, 8.0f);
+
+                // Styled button showing the current texture path.
+                // Acts as the main drop target for sprites and textures.
+                char tex_label[256];
                 if (tex_path != nullptr) {
-                    igText("Texture: %s", tex_path);
+                    snprintf(tex_label, sizeof(tex_label),
+                             "%s##sprite_tex", tex_path);
                 } else {
-                    igTextDisabled("Texture: (none)");
+                    snprintf(tex_label, sizeof(tex_label),
+                             "(none — drop texture here)##sprite_tex");
+                }
+
+                igPushStyleColor_Vec4(ImGuiCol_Button,
+                    (ImVec4){ 0.15f, 0.15f, 0.20f, 1.0f });
+                igPushStyleColor_Vec4(ImGuiCol_ButtonHovered,
+                    (ImVec4){ 0.20f, 0.25f, 0.35f, 1.0f });
+                igPushStyleColor_Vec4(ImGuiCol_ButtonActive,
+                    (ImVec4){ 0.18f, 0.22f, 0.30f, 1.0f });
+                igButton(tex_label, (ImVec2){ -1.0f, 0.0f });
+                igPopStyleColor(3);
+
+                // Drop target on the texture button.
+                if (igBeginDragDropTarget()) {
+                    const ImGuiPayload *rp =
+                        igAcceptDragDropPayload(SPRITE_REGION_DRAG_TYPE, 0);
+                    if (rp != nullptr &&
+                        rp->DataSize == sizeof(SpriteDragPayload)) {
+                        const SpriteDragPayload *drop =
+                            (const SpriteDragPayload *)rp->Data;
+                        AssetHandle h =
+                            asset_manager_load_texture(am,
+                                                      drop->texture_path);
+                        if (h != ASSET_HANDLE_INVALID) {
+                            uint32_t tw = 0, th = 0;
+                            asset_manager_get_texture_size(am, h, &tw, &th);
+                            spr->sprite = sprite_from_sheet(h, tw, th,
+                                                            drop->rect);
+                        }
+                    }
+                    const ImGuiPayload *ap =
+                        igAcceptDragDropPayload("ASSET_PATH", 0);
+                    if (ap != nullptr && am != nullptr) {
+                        const char *path = (const char *)ap->Data;
+                        if (path != nullptr) {
+                            AssetHandle h =
+                                asset_manager_load_texture(am, path);
+                            if (h != ASSET_HANDLE_INVALID) {
+                                uint32_t tw = 0, th = 0;
+                                asset_manager_get_texture_size(am, h,
+                                                              &tw, &th);
+                                spr->sprite = sprite_from_texture(h, tw, th);
+                            }
+                        }
+                    }
+                    igEndDragDropTarget();
                 }
 
                 // Texture dimensions.
@@ -289,12 +390,6 @@ void panel_inspector_render(bool *p_open,
                     spr->sprite.uv_rect.w, spr->sprite.uv_rect.h
                 };
                 igDragFloat4("UV Rect", uv, 0.0f, 0.0f, 0.0f, "%.3f", 0);
-                igEndDisabled();
-
-                igBeginDisabled(true);
-                uint32_t handle_val = (uint32_t)spr->sprite.texture;
-                igDragScalar("Handle", ImGuiDataType_U32,
-                             &handle_val, 0.0f, nullptr, nullptr, "%u", 0);
                 igEndDisabled();
             }
         }
@@ -356,6 +451,7 @@ void panel_inspector_render(bool *p_open,
             }
         }
     }
+
 
     // ---- Hierarchy info ---------------------------------------------------
     Hierarchy *hier = (Hierarchy *)world_get_component(

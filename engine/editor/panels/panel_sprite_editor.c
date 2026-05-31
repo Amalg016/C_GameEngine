@@ -125,6 +125,18 @@ static void draw_toolbar(AssetManager *am, Renderer *renderer) {
     igInputText("##tex_path", s_texture_path, sizeof(s_texture_path), 0,
                 nullptr, nullptr);
 
+    // Drop target on the text input field.
+    if (igBeginDragDropTarget()) {
+        const ImGuiPayload *payload = igAcceptDragDropPayload("ASSET_PATH", 0);
+        if (payload != nullptr) {
+            const char *dropped = (const char *)payload->Data;
+            strncpy(s_texture_path, dropped, sizeof(s_texture_path) - 1);
+            s_texture_path[sizeof(s_texture_path) - 1] = '\0';
+            load_texture(am, renderer);
+        }
+        igEndDragDropTarget();
+    }
+
     igSameLine(0.0f, 4.0f);
     if (igButton("Load", (ImVec2){ 60, 0 })) {
         load_texture(am, renderer);

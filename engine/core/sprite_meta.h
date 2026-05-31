@@ -83,4 +83,19 @@ void sprite_meta_build_path(const char *texture_path,
 /// Check if a `.sprite.meta` file exists for the given texture path.
 bool sprite_meta_exists(const char *texture_path);
 
+// ---------------------------------------------------------------------------
+// Drag-and-drop payload for transferring individual sprite regions
+// between editor panels (e.g. Content Browser → Inspector).
+// ---------------------------------------------------------------------------
+
+/// ImGui drag-drop payload type identifier for sprite regions.
+#define SPRITE_REGION_DRAG_TYPE "SPRITE_REGION"
+
+/// Payload struct carried during a sprite region drag operation.
+/// Contains the texture path and the pixel-space rect of the sub-region.
+typedef struct SpriteDragPayload {
+    char texture_path[SpritePathMaxLen];
+    Rect rect;    // pixel-space sub-region
+} SpriteDragPayload;
+
 #endif // ENGINE_CORE_SPRITE_META_H

@@ -3,6 +3,8 @@
 #include "ecs/ecs.h"
 #include "asset_manager.h"
 #include "sprite.h"
+#include "animation.h"
+#include "anim_cache.h"
 #include "../renderer/renderer.h"
 
 // Lua host internal accessors — needed for Sprite/Velocity ComponentIds.
@@ -13,6 +15,9 @@ extern void        lua_host_set_sprite_id(LuaHost *host, ComponentId id);
 extern bool        lua_host_velocity_registered(LuaHost *host);
 extern ComponentId lua_host_get_velocity_id(LuaHost *host);
 extern void        lua_host_set_velocity_id(LuaHost *host, ComponentId id);
+extern bool        lua_host_animator_registered(LuaHost *host);
+extern ComponentId lua_host_get_animator_id(LuaHost *host);
+extern void        lua_host_set_animator_id(LuaHost *host, ComponentId id);
 
 #include "../../third_party/cJSON.h"
 
@@ -31,6 +36,10 @@ typedef struct SceneSprite {
 typedef struct SceneVelocity {
     float dx, dy;
 } SceneVelocity;
+
+typedef struct SceneAnimator {
+    Animator animator;
+} SceneAnimator;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -85,6 +94,18 @@ static ComponentId ensure_velocity_component(World *world, LuaHost *lua) {
     ComponentId id = world_register_component(world, sizeof(SceneVelocity));
     if (lua != nullptr) {
         lua_host_set_velocity_id(lua, id);
+    }
+    return id;
+}
+
+/// Ensure the Animator component type is registered.
+static ComponentId ensure_animator_component(World *world, LuaHost *lua) {
+    if (lua != nullptr && lua_host_animator_registered(lua)) {
+        return lua_host_get_animator_id(lua);
+    }
+    ComponentId id = world_register_component(world, sizeof(SceneAnimator));
+    if (lua != nullptr) {
+        lua_host_set_animator_id(lua, id);
     }
     return id;
 }
@@ -320,10 +341,12 @@ bool scene_load(Engine *engine, const char *filepath) {
     // Sprite / Velocity component IDs — lazily ensured once during the load.
     bool     need_sprite   = false;
     bool     need_velocity = false;
+    bool     need_animator = false;
     ComponentId c_sprite   = UINT8_MAX;
     ComponentId c_velocity = UINT8_MAX;
+    ComponentId c_animator = UINT8_MAX;
 
-    // Pre-scan: do we need Sprite or Velocity components?
+    // Pre-scan: do we need Sprite, Velocity, or Animator components?
     {
         cJSON *ent_json = nullptr;
         cJSON_ArrayForEach(ent_json, entities) {
@@ -331,11 +354,13 @@ bool scene_load(Engine *engine, const char *filepath) {
             if (comps == nullptr) continue;
             if (cJSON_GetObjectItemCaseSensitive(comps, "sprite"))   need_sprite   = true;
             if (cJSON_GetObjectItemCaseSensitive(comps, "velocity")) need_velocity = true;
+            if (cJSON_GetObjectItemCaseSensitive(comps, "animator")) need_animator = true;
         }
     }
 
     if (need_sprite)   c_sprite   = ensure_sprite_component(world, lua);
     if (need_velocity) c_velocity = ensure_velocity_component(world, lua);
+    if (need_animator) c_animator = ensure_animator_component(world, lua);
 
     // Main entity loop.
     {
@@ -494,6 +519,67 @@ bool scene_load(Engine *engine, const char *filepath) {
                     }
                 }
             }
+
+            // -- animator --------------------------------------------------------
+            cJSON *anim_json = cJSON_GetObjectItemCaseSensitive(comps, "animator");
+            if (anim_json != nullptr && c_animator != UINT8_MAX) {
+                cJSON *anim_path_item = cJSON_GetObjectItemCaseSensitive(
+                    anim_json, "animation");
+                if (cJSON_IsString(anim_path_item)) {
+                    const char *anim_path = anim_path_item->valuestring;
+
+                    // Load AnimData from cache.
+                    AnimCache *acache = engine_get_anim_cache(engine);
+                    AnimData *ad = nullptr;
+                    if (acache != nullptr) {
+                        ad = anim_cache_load(acache, anim_path);
+                    }
+
+                    if (ad != nullptr) {
+                        // Load the texture referenced by the animation.
+                        AssetHandle tex_h = texmap_lookup(&texmap, ad->texture_path);
+                        if (tex_h == ASSET_HANDLE_INVALID) {
+                            tex_h = asset_manager_load_texture(am, ad->texture_path);
+                        }
+
+                        if (tex_h != ASSET_HANDLE_INVALID) {
+                            uint32_t tw = 0, th = 0;
+                            asset_manager_get_texture_size(am, tex_h, &tw, &th);
+
+                            SceneAnimator sa = {};
+                            animator_init(&sa.animator);
+                            strncpy(sa.animator.anim_path, anim_path,
+                                    AnimPathMaxLen - 1);
+                            sa.animator.anim_path[AnimPathMaxLen - 1] = '\0';
+                            sa.animator.texture   = tex_h;
+                            sa.animator.tex_width  = tw;
+                            sa.animator.tex_height = th;
+                            sa.animator.anim_data  = ad;
+
+                            // Optionally start a specific clip.
+                            cJSON *clip_item = cJSON_GetObjectItemCaseSensitive(
+                                anim_json, "clip");
+                            if (cJSON_IsString(clip_item)) {
+                                animator_play(&sa.animator, clip_item->valuestring);
+                            }
+
+                            cJSON *playing_item = cJSON_GetObjectItemCaseSensitive(
+                                anim_json, "playing");
+                            if (cJSON_IsBool(playing_item)) {
+                                sa.animator.playing = cJSON_IsTrue(playing_item);
+                            }
+
+                            world_add_component(world, live, c_animator, &sa);
+                        } else {
+                            fprintf(stderr, "[scene] warning: animator texture "
+                                    "'%s' not found\n", ad->texture_path);
+                        }
+                    } else {
+                        fprintf(stderr, "[scene] warning: animation '%s' "
+                                "not found\n", anim_path);
+                    }
+                }
+            }
         }
     }
 
@@ -556,9 +642,11 @@ bool scene_save(Engine *engine, const char *filepath) {
     bool has_sprite   = (lua != nullptr && lua_host_sprite_registered(lua));
     bool has_velocity = (lua != nullptr && lua_host_velocity_registered(lua));
     bool has_script   = (lua != nullptr && lua_host_script_registered(lua));
+    bool has_animator = (lua != nullptr && lua_host_animator_registered(lua));
     ComponentId c_sprite   = has_sprite   ? lua_host_get_sprite_id(lua)   : UINT8_MAX;
     ComponentId c_velocity = has_velocity ? lua_host_get_velocity_id(lua) : UINT8_MAX;
     ComponentId c_script   = has_script   ? lua_host_get_script_id(lua)   : UINT8_MAX;
+    ComponentId c_animator = has_animator ? lua_host_get_animator_id(lua) : UINT8_MAX;
 
     // --- Build JSON tree --------------------------------------------------
     cJSON *root = cJSON_CreateObject();
@@ -710,6 +798,23 @@ bool scene_save(Engine *engine, const char *filepath) {
                                            sc->slots[s].path);
                     cJSON_AddItemToArray(scripts_arr, entry);
                 }
+            }
+        }
+
+        // -- animator --------------------------------------------------------
+        if (has_animator && c_animator != UINT8_MAX) {
+            SceneAnimator *sa = (SceneAnimator *)world_get_component(
+                world, ent, c_animator);
+            if (sa != nullptr && sa->animator.anim_path[0] != '\0') {
+                cJSON *anim_obj = cJSON_AddObjectToObject(comps, "animator");
+                cJSON_AddStringToObject(anim_obj, "animation",
+                                       sa->animator.anim_path);
+                if (sa->animator.anim_data != nullptr &&
+                    sa->animator.current_clip < sa->animator.anim_data->clip_count) {
+                    cJSON_AddStringToObject(anim_obj, "clip",
+                        sa->animator.anim_data->clips[sa->animator.current_clip].name);
+                }
+                cJSON_AddBoolToObject(anim_obj, "playing", sa->animator.playing);
             }
         }
 

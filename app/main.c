@@ -2,6 +2,7 @@
 #include "../engine/platform/platform.h"
 #include "../engine/core/asset_manager.h"
 #include "../engine/core/sprite.h"
+#include "../engine/core/animation.h"
 #include "../engine/core/clock.h"
 #include "../engine/core/ecs/ecs.h"
 #include "../engine/core/input.h"
@@ -28,6 +29,17 @@ typedef struct AppState {
 } AppState;
 
 // ---------------------------------------------------------------------------
+// Lua host internal accessors — file-scope externs.
+// ---------------------------------------------------------------------------
+
+extern bool        lua_host_velocity_registered(LuaHost *host);
+extern ComponentId lua_host_get_velocity_id(LuaHost *host);
+extern bool        lua_host_sprite_registered(LuaHost *host);
+extern ComponentId lua_host_get_sprite_id(LuaHost *host);
+extern bool        lua_host_animator_registered(LuaHost *host);
+extern ComponentId lua_host_get_animator_id(LuaHost *host);
+
+// ---------------------------------------------------------------------------
 // Systems (remain in C for performance)
 // ---------------------------------------------------------------------------
 
@@ -42,12 +54,6 @@ static inline float lerpf(float a, float b, float t) {
 static void system_movement(AppState *app, double dt) {
     LuaHost *lua = app->lua_host;
     if (lua == nullptr) return;
-
-    // The Velocity component is lazy-registered by the Lua bindings.
-    // We need to get its ComponentId from the host.
-    // If no entity has been given a velocity yet, skip.
-    extern bool        lua_host_velocity_registered(LuaHost *host);
-    extern ComponentId lua_host_get_velocity_id(LuaHost *host);
 
     if (!lua_host_velocity_registered(lua)) return;
     ComponentId c_vel = lua_host_get_velocity_id(lua);
@@ -100,9 +106,6 @@ static void system_sprite_render(AppState *app, float alpha) {
     LuaHost *lua = app->lua_host;
     if (lua == nullptr) return;
 
-    extern bool        lua_host_sprite_registered(LuaHost *host);
-    extern ComponentId lua_host_get_sprite_id(LuaHost *host);
-
     if (!lua_host_sprite_registered(lua)) return;
     ComponentId c_sprite = lua_host_get_sprite_id(lua);
 
@@ -143,6 +146,38 @@ static void system_sprite_render(AppState *app, float alpha) {
                              ent,
                              sc->sprite.uv_rect.x, sc->sprite.uv_rect.y,
                              sc->sprite.uv_rect.w, sc->sprite.uv_rect.h);
+    }
+}
+
+/// Animation system: advance Animator components and update Sprite UVs.
+/// Runs per-frame with the variable delta time.
+static void system_animation_update(AppState *app, double dt) {
+    LuaHost *lua = app->lua_host;
+    if (lua == nullptr) return;
+
+    if (!lua_host_animator_registered(lua)) return;
+    if (!lua_host_sprite_registered(lua)) return;
+
+    ComponentId c_anim   = lua_host_get_animator_id(lua);
+    ComponentId c_sprite = lua_host_get_sprite_id(lua);
+
+    typedef struct { Sprite sprite; } SpriteComp;
+    typedef struct { Animator animator; } AnimComp;
+
+    ComponentPool *anim_pool = world_get_pool(app->world, c_anim);
+    if (anim_pool == nullptr) return;
+
+    for (uint32_t i = 0; i < anim_pool->count; ++i) {
+        uint32_t ent_idx = component_pool_get_entity(anim_pool, i);
+        AnimComp *ac     = (AnimComp *)component_pool_get_dense(anim_pool, i);
+
+        Entity ent = world_entity_from_index(app->world, ent_idx);
+        SpriteComp *sc = (SpriteComp *)world_get_component(
+            app->world, ent, c_sprite);
+
+        if (sc == nullptr) continue;
+
+        animator_update(&ac->animator, (float)dt, &sc->sprite);
     }
 }
 
@@ -189,6 +224,9 @@ static void on_fixed_update(void *user_data, double dt) {
 static void on_update(void *user_data, double dt) {
     AppState *app = (AppState *)user_data;
     app->frame_time += dt;
+
+    // Advance animation playback (modifies Sprite components).
+    system_animation_update(app, dt);
 
     // Lua per-frame update hook.
     lua_host_on_update(app->lua_host, dt);

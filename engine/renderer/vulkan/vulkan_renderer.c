@@ -601,12 +601,24 @@ static void vulkan_draw_quad(Renderer *self) {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx->graphics_pipeline);
 
-    // Push constants: mat4 view_proj + vec2 scale + vec2 translate + uint32_t entity_id.
-    struct { float vp[16]; float scale[2]; float translate[2]; uint32_t entity_id; } pc;
+    // Push constants: mat4 view_proj + vec2 scale + vec2 translate + uint entity_id
+    //                 + float _pad + vec2 uv_offset + vec2 uv_scale.
+    struct {
+        float    vp[16];
+        float    scale[2];
+        float    translate[2];
+        uint32_t entity_id;
+        float    _pad;
+        float    uv_offset[2];
+        float    uv_scale[2];
+    } pc;
     memcpy(pc.vp, ctx->view_proj, sizeof(pc.vp));
     pc.scale[0] = 1.0f;  pc.scale[1] = 1.0f;
     pc.translate[0] = 0.0f;  pc.translate[1] = 0.0f;
     pc.entity_id = 0;
+    pc._pad = 0.0f;
+    pc.uv_offset[0] = 0.0f;  pc.uv_offset[1] = 0.0f;
+    pc.uv_scale[0]  = 1.0f;  pc.uv_scale[1]  = 1.0f;
     vkCmdPushConstants(cmd, ctx->pipeline_layout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
 
@@ -628,9 +640,12 @@ static void vulkan_draw_quad(Renderer *self) {
 }
 
 /// Draw a textured sprite at (x, y) with size (w, h) in world space.
+/// UV rect (uv_x, uv_y, uv_w, uv_h) defines the sub-region of the texture.
 static void vulkan_draw_sprite(Renderer *self,
                                 float x, float y, float w, float h,
-                                uint32_t entity_index) {
+                                uint32_t entity_index,
+                                float uv_x, float uv_y,
+                                float uv_w, float uv_h) {
     VulkanContext *ctx = (VulkanContext *)self->backend_data;
     uint32_t frame = ctx->current_frame;
     VkCommandBuffer cmd = ctx->command_buffers[frame];
@@ -638,12 +653,24 @@ static void vulkan_draw_sprite(Renderer *self,
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx->graphics_pipeline);
 
-    // Push constants: mat4 view_proj + vec2 scale + vec2 translate + uint32_t entity_id.
-    struct { float vp[16]; float scale[2]; float translate[2]; uint32_t entity_id; } pc;
+    // Push constants: mat4 view_proj + vec2 scale + vec2 translate + uint entity_id
+    //                 + float _pad + vec2 uv_offset + vec2 uv_scale.
+    struct {
+        float    vp[16];
+        float    scale[2];
+        float    translate[2];
+        uint32_t entity_id;
+        float    _pad;
+        float    uv_offset[2];
+        float    uv_scale[2];
+    } pc;
     memcpy(pc.vp, ctx->view_proj, sizeof(pc.vp));
     pc.scale[0] = w;  pc.scale[1] = h;
     pc.translate[0] = x;  pc.translate[1] = y;
     pc.entity_id = entity_index;
+    pc._pad = 0.0f;
+    pc.uv_offset[0] = uv_x;  pc.uv_offset[1] = uv_y;
+    pc.uv_scale[0]  = uv_w;  pc.uv_scale[1]  = uv_h;
     vkCmdPushConstants(cmd, ctx->pipeline_layout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
 
@@ -772,6 +799,17 @@ static void vulkan_bind_texture(Renderer *self, void *gpu_data) {
     }
 }
 
+/// Query the pixel dimensions of a loaded texture.
+static bool vulkan_get_texture_size(Renderer *self, void *gpu_data,
+                                     uint32_t *out_w, uint32_t *out_h) {
+    (void)self;
+    VulkanTexture *tex = (VulkanTexture *)gpu_data;
+    if (tex == nullptr) return false;
+    if (out_w != nullptr) *out_w = tex->width;
+    if (out_h != nullptr) *out_h = tex->height;
+    return true;
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -797,6 +835,7 @@ Renderer vulkan_renderer_create(Platform *platform) {
             .load_texture        = vulkan_load_texture,
             .destroy_texture     = vulkan_destroy_texture_cb,
             .bind_texture        = vulkan_bind_texture,
+            .get_texture_size    = vulkan_get_texture_size,
         },
         .backend_data = ctx,
     };

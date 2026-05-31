@@ -38,7 +38,9 @@ typedef struct RendererAPI {
 
     /// Draw a textured quad at (x, y) with size (w, h) in NDC.
     /// The currently bound texture is used.
-    void (*draw_sprite)(Renderer *self, float x, float y, float w, float h, uint32_t entity_index);
+    void (*draw_sprite)(Renderer *self, float x, float y, float w, float h,
+                        uint32_t entity_index,
+                        float uv_x, float uv_y, float uv_w, float uv_h);
 
     // --- Asset loading callbacks (used by the asset manager) ---------------
     /// Load a texture from `path`.  Returns a heap-allocated opaque pointer
@@ -53,6 +55,11 @@ typedef struct RendererAPI {
     /// Bind a loaded texture for subsequent draw calls.  `gpu_data` is the
     /// pointer returned by load_texture.
     void  (*bind_texture)(Renderer *self, void *gpu_data);
+
+    /// Query the pixel dimensions of a loaded texture.
+    /// Returns true on success, false if gpu_data is nullptr.
+    bool  (*get_texture_size)(Renderer *self, void *gpu_data,
+                              uint32_t *out_w, uint32_t *out_h);
 } RendererAPI;
 
 struct Renderer {
@@ -79,10 +86,14 @@ bool  renderer_begin_frame(Renderer *r);
 void  renderer_end_frame(Renderer *r);
 void  renderer_draw_quad(Renderer *r);
 void  renderer_set_view_projection(Renderer *r, const float *mat4x4);
-void  renderer_draw_sprite(Renderer *r, float x, float y, float w, float h, uint32_t entity_index);
+void  renderer_draw_sprite(Renderer *r, float x, float y, float w, float h,
+                           uint32_t entity_index,
+                           float uv_x, float uv_y, float uv_w, float uv_h);
 
 void *renderer_load_texture(Renderer *r, const char *path);
 void  renderer_destroy_texture(Renderer *r, void *gpu_data);
 void  renderer_bind_texture(Renderer *r, void *gpu_data);
+bool  renderer_get_texture_size(Renderer *r, void *gpu_data,
+                                uint32_t *out_w, uint32_t *out_h);
 
 #endif // ENGINE_RENDERER_H

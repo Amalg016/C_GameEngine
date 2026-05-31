@@ -369,11 +369,14 @@ bool vulkan_pipeline_create(VulkanContext *ctx,
     };
 #endif
 
-    // Push constant range: 84 bytes (mat4 view_proj + vec2 scale + vec2 translate + uint entity_id).
+    // Push constant range: 104 bytes
+    // mat4 view_proj (64) + vec2 scale (8) + vec2 translate (8) +
+    // uint entity_id (4) + float _pad (4) + vec2 uv_offset (8) + vec2 uv_scale (8).
     VkPushConstantRange push_range = {
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
         .offset     = 0,
-        .size       = 16 * sizeof(float) + 4 * sizeof(float) + sizeof(uint32_t),  // 84
+        .size       = 16 * sizeof(float) + 4 * sizeof(float) + sizeof(uint32_t)
+                    + sizeof(float) + 4 * sizeof(float),  // 104
     };
 
     // Pipeline layout now references the descriptor set layout + push constants.

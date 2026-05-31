@@ -3,6 +3,7 @@
 
 #include "../ecs/ecs.h"
 #include "../asset_manager.h"
+#include "../sprite.h"
 #include "../input.h"
 #include "../../renderer/renderer.h"
 
@@ -36,10 +37,10 @@ extern bool              lua_host_sprite_registered(LuaHost *host);
 extern Input            *lua_host_get_input(LuaHost *host);
 
 // ---------------------------------------------------------------------------
-// Application-level Sprite component.  Mirrors the definition in main.c.
+// Application-level Sprite component.  Mirrors the definition in scene.c.
 // ---------------------------------------------------------------------------
 typedef struct LuaSprite {
-    AssetHandle texture;
+    Sprite sprite;
 } LuaSprite;
 
 // ---------------------------------------------------------------------------
@@ -92,9 +93,9 @@ static int l_destroy_entity(lua_State *L) {
     if (lua_host_sprite_registered(host)) {
         ComponentId c_sprite = lua_host_get_sprite_id(host);
         LuaSprite *spr = (LuaSprite *)world_get_component(world, e, c_sprite);
-        if (spr != nullptr && spr->texture != ASSET_HANDLE_INVALID) {
+        if (spr != nullptr && spr->sprite.texture != ASSET_HANDLE_INVALID) {
             AssetManager *am = lua_host_get_asset_manager(host);
-            asset_manager_release(am, spr->texture);
+            asset_manager_release(am, spr->sprite.texture);
         }
     }
 
@@ -227,6 +228,7 @@ static int l_release_texture(lua_State *L) {
 static int l_set_sprite(lua_State *L) {
     LuaHost *host = get_host(L);
     World *world = lua_host_get_world(host);
+    AssetManager *am = lua_host_get_asset_manager(host);
 
     Entity e        = (Entity)luaL_checkinteger(L, 1);
     AssetHandle tex = (AssetHandle)luaL_checkinteger(L, 2);
@@ -237,12 +239,30 @@ static int l_set_sprite(lua_State *L) {
         lua_host_set_sprite_id(host, id);
     }
 
+    // Query texture dimensions.
+    uint32_t tw = 0, th = 0;
+    asset_manager_get_texture_size(am, tex, &tw, &th);
+
+    // Build the Sprite — check for optional rect parameters (x, y, w, h).
+    Sprite sprite;
+    if (lua_gettop(L) >= 6) {
+        Rect pixel_rect = {
+            .x = (float)luaL_checknumber(L, 3),
+            .y = (float)luaL_checknumber(L, 4),
+            .w = (float)luaL_checknumber(L, 5),
+            .h = (float)luaL_checknumber(L, 6),
+        };
+        sprite = sprite_from_sheet(tex, tw, th, pixel_rect);
+    } else {
+        sprite = sprite_from_texture(tex, tw, th);
+    }
+
     ComponentId c_sprite = lua_host_get_sprite_id(host);
-    LuaSprite spr = { .texture = tex };
+    LuaSprite spr = { .sprite = sprite };
 
     LuaSprite *existing = (LuaSprite *)world_get_component(world, e, c_sprite);
     if (existing != nullptr) {
-        existing->texture = tex;
+        existing->sprite = sprite;
     } else {
         world_add_component(world, e, c_sprite, &spr);
     }

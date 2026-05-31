@@ -75,9 +75,12 @@ void renderer_set_view_projection(Renderer *r, const float *mat4x4) {
     }
 }
 
-void renderer_draw_sprite(Renderer *r, float x, float y, float w, float h, uint32_t entity_index) {
+void renderer_draw_sprite(Renderer *r, float x, float y, float w, float h,
+                          uint32_t entity_index,
+                          float uv_x, float uv_y, float uv_w, float uv_h) {
     if (r != nullptr && r->api.draw_sprite != nullptr) {
-        r->api.draw_sprite(r, x, y, w, h, entity_index);
+        r->api.draw_sprite(r, x, y, w, h, entity_index,
+                           uv_x, uv_y, uv_w, uv_h);
     }
 }
 
@@ -98,4 +101,12 @@ void renderer_bind_texture(Renderer *r, void *gpu_data) {
     if (r != nullptr && r->api.bind_texture != nullptr) {
         r->api.bind_texture(r, gpu_data);
     }
+}
+
+bool renderer_get_texture_size(Renderer *r, void *gpu_data,
+                               uint32_t *out_w, uint32_t *out_h) {
+    if (r != nullptr && r->api.get_texture_size != nullptr) {
+        return r->api.get_texture_size(r, gpu_data, out_w, out_h);
+    }
+    return false;
 }

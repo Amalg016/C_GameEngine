@@ -2,6 +2,7 @@
 #include "engine.h"
 #include "ecs/ecs.h"
 #include "asset_manager.h"
+#include "sprite.h"
 #include "../renderer/renderer.h"
 
 // Lua host internal accessors — needed for Sprite/Velocity ComponentIds.
@@ -24,7 +25,7 @@ extern void        lua_host_set_velocity_id(LuaHost *host, ComponentId id);
 // ---------------------------------------------------------------------------
 
 typedef struct SceneSprite {
-    AssetHandle texture;
+    Sprite sprite;
 } SceneSprite;
 
 typedef struct SceneVelocity {
@@ -187,8 +188,8 @@ void scene_unload(Engine *engine) {
             for (uint32_t i = 0; i < spr_pool->count; ++i) {
                 SceneSprite *spr = (SceneSprite *)component_pool_get_dense(
                     spr_pool, i);
-                if (spr->texture != ASSET_HANDLE_INVALID) {
-                    asset_manager_release(am, spr->texture);
+                if (spr->sprite.texture != ASSET_HANDLE_INVALID) {
+                    asset_manager_release(am, spr->sprite.texture);
                 }
             }
             printf("[scene] released %u sprite asset reference(s)\n",
@@ -433,7 +434,33 @@ bool scene_load(Engine *engine, const char *filepath) {
                         h = asset_manager_load_texture(am, tex_item->valuestring);
                     }
                     if (h != ASSET_HANDLE_INVALID) {
-                        SceneSprite spr = { .texture = h };
+                        // Query texture dimensions for UV computation.
+                        uint32_t tw = 0, th = 0;
+                        asset_manager_get_texture_size(am, h, &tw, &th);
+
+                        // Parse optional pixel rect for spritesheet slicing.
+                        cJSON *rect_json = cJSON_GetObjectItemCaseSensitive(
+                            spr_json, "rect");
+
+                        Sprite sprite;
+                        if (rect_json != nullptr) {
+                            Rect pixel_rect = {
+                                .x = (float)cJSON_GetNumberValue(
+                                    cJSON_GetObjectItemCaseSensitive(rect_json, "x")),
+                                .y = (float)cJSON_GetNumberValue(
+                                    cJSON_GetObjectItemCaseSensitive(rect_json, "y")),
+                                .w = (float)cJSON_GetNumberValue(
+                                    cJSON_GetObjectItemCaseSensitive(rect_json, "w")),
+                                .h = (float)cJSON_GetNumberValue(
+                                    cJSON_GetObjectItemCaseSensitive(rect_json, "h")),
+                            };
+                            sprite = sprite_from_sheet(h, tw, th, pixel_rect);
+                        } else {
+                            // No rect — use the full texture (backward compatible).
+                            sprite = sprite_from_texture(h, tw, th);
+                        }
+
+                        SceneSprite spr = { .sprite = sprite };
                         world_add_component(world, live, c_sprite, &spr);
                     } else {
                         fprintf(stderr, "[scene] warning: sprite texture '%s' not found\n",
@@ -553,7 +580,7 @@ bool scene_save(Engine *engine, const char *filepath) {
         if (spr_pool != nullptr) {
             for (uint32_t i = 0; i < spr_pool->count; ++i) {
                 SceneSprite *spr = (SceneSprite *)component_pool_get_dense(spr_pool, i);
-                const char *path = asset_manager_get_path(am, spr->texture);
+                const char *path = asset_manager_get_path(am, spr->sprite.texture);
                 if (path == nullptr) continue;
 
                 // Dedup.
@@ -645,10 +672,17 @@ bool scene_save(Engine *engine, const char *filepath) {
             SceneSprite *spr = (SceneSprite *)world_get_component(
                 world, ent, c_sprite);
             if (spr != nullptr) {
-                const char *tex_path = asset_manager_get_path(am, spr->texture);
+                const char *tex_path = asset_manager_get_path(am, spr->sprite.texture);
                 if (tex_path != nullptr) {
                     cJSON *spr_obj = cJSON_AddObjectToObject(comps, "sprite");
                     cJSON_AddStringToObject(spr_obj, "texture", tex_path);
+
+                    // Always write the pixel rect so the sub-region is preserved.
+                    cJSON *rect_obj = cJSON_AddObjectToObject(spr_obj, "rect");
+                    cJSON_AddNumberToObject(rect_obj, "x", (double)spr->sprite.rect.x);
+                    cJSON_AddNumberToObject(rect_obj, "y", (double)spr->sprite.rect.y);
+                    cJSON_AddNumberToObject(rect_obj, "w", (double)spr->sprite.rect.w);
+                    cJSON_AddNumberToObject(rect_obj, "h", (double)spr->sprite.rect.h);
                 }
             }
         }

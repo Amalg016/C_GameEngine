@@ -160,6 +160,7 @@ bool engine_init(Engine *engine) {
         .destroy_texture = am_destroy_texture,
     };
     asset_manager_set_callbacks(engine->asset_manager, &cbs);
+    asset_manager_set_renderer(engine->asset_manager, &engine->renderer);
 
 #ifdef EDITOR_BUILD
     // Create the editor layer now that the renderer is fully ready.

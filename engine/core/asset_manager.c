@@ -1,4 +1,5 @@
 #include "asset_manager.h"
+#include "../renderer/renderer.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,6 +30,7 @@ struct AssetManager {
     uint32_t              count;       // number of live entries
     uint32_t              next_handle; // monotonically increasing
     AssetManagerCallbacks cbs;
+    Renderer             *renderer;    // back-pointer for texture queries
 };
 
 // ---------------------------------------------------------------------------
@@ -281,4 +283,20 @@ const char *asset_manager_get_path(const AssetManager *am, AssetHandle handle) {
         }
     }
     return nullptr;
+}
+
+void asset_manager_set_renderer(AssetManager *am, Renderer *renderer) {
+    if (am != nullptr) {
+        am->renderer = renderer;
+    }
+}
+
+bool asset_manager_get_texture_size(AssetManager *am, AssetHandle handle,
+                                    uint32_t *out_w, uint32_t *out_h) {
+    if (am == nullptr || am->renderer == nullptr) return false;
+
+    void *gpu_data = asset_manager_get_data(am, handle);
+    if (gpu_data == nullptr) return false;
+
+    return renderer_get_texture_size(am->renderer, gpu_data, out_w, out_h);
 }

@@ -48,6 +48,33 @@ static inline Vec3 vec3_normalize(Vec3 v) {
 }
 
 // ---------------------------------------------------------------------------
+// Vec2
+// ---------------------------------------------------------------------------
+
+typedef struct Vec2 {
+    float x, y;
+} Vec2;
+
+static inline Vec2 vec2(float x, float y) {
+    return (Vec2){ x, y };
+}
+
+// ---------------------------------------------------------------------------
+// Rect — axis-aligned rectangle
+// ---------------------------------------------------------------------------
+
+/// Axis-aligned rectangle (used for UV sub-regions, bounding boxes, etc.).
+/// Origin is at the top-left corner; (x, y) is the top-left, (w, h) is size.
+typedef struct Rect {
+    float x, y;     // top-left origin
+    float w, h;     // width, height
+} Rect;
+
+static inline Rect rect(float x, float y, float w, float h) {
+    return (Rect){ x, y, w, h };
+}
+
+// ---------------------------------------------------------------------------
 // Mat4 — column-major 4×4 matrix
 // ---------------------------------------------------------------------------
 

@@ -5,12 +5,15 @@ layout(location = 0) in vec2 in_pos;
 layout(location = 1) in vec2 in_uv;
 layout(location = 2) in vec3 in_color;
 
-// Push constants — view-projection + per-sprite 2D transform.
+// Push constants — view-projection + per-sprite 2D transform + UV sub-region.
 layout(push_constant) uniform PushConstants {
     mat4 view_proj;
     vec2 scale;
     vec2 translate;
     uint entity_id;
+    float _pad;         // alignment padding (uint → vec2 boundary)
+    vec2 uv_offset;     // top-left UV of the sprite rect
+    vec2 uv_scale;      // size of the sprite rect in UV space
 } pc;
 
 // Outputs to the fragment shader.
@@ -23,6 +26,6 @@ void main() {
     vec2 world_pos = in_pos * pc.scale + pc.translate;
     gl_Position = pc.view_proj * vec4(world_pos, 0.0, 1.0);
     frag_color  = in_color;
-    frag_uv     = in_uv;
+    frag_uv     = pc.uv_offset + in_uv * pc.uv_scale;
     frag_entity_id = pc.entity_id;
 }

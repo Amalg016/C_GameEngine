@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+typedef struct Renderer Renderer;
+
 // ---------------------------------------------------------------------------
 // Asset Manager — "load once, use many"
 //
@@ -80,5 +82,14 @@ uint32_t asset_manager_get_ref_count(AssetManager *am, AssetHandle handle);
 /// Get the file path associated with a loaded asset handle.
 /// Returns nullptr for invalid or expired handles.
 const char *asset_manager_get_path(const AssetManager *am, AssetHandle handle);
+
+/// Store a back-pointer to the renderer so the asset manager can query
+/// texture dimensions via the renderer's get_texture_size callback.
+void asset_manager_set_renderer(AssetManager *am, Renderer *renderer);
+
+/// Query the pixel dimensions of a loaded texture asset.
+/// Returns false for invalid handles or non-texture assets.
+bool asset_manager_get_texture_size(AssetManager *am, AssetHandle handle,
+                                    uint32_t *out_w, uint32_t *out_h);
 
 #endif // ENGINE_ASSET_MANAGER_H

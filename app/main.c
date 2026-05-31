@@ -1,6 +1,7 @@
 #include "../engine/core/engine.h"
 #include "../engine/platform/platform.h"
 #include "../engine/core/asset_manager.h"
+#include "../engine/core/sprite.h"
 #include "../engine/core/clock.h"
 #include "../engine/core/ecs/ecs.h"
 #include "../engine/core/input.h"
@@ -105,15 +106,15 @@ static void system_sprite_render(AppState *app, float alpha) {
     if (!lua_host_sprite_registered(lua)) return;
     ComponentId c_sprite = lua_host_get_sprite_id(lua);
 
-    // Reuse the LuaSprite layout (matches Lua bindings).
-    typedef struct { AssetHandle texture; } Sprite;
+    // Reuse the LuaSprite layout (matches Lua bindings / scene.c).
+    typedef struct { Sprite sprite; } SpriteComp;
 
     ComponentPool *sprite_pool = world_get_pool(app->world, c_sprite);
     if (sprite_pool == nullptr) return;
 
     for (uint32_t i = 0; i < sprite_pool->count; ++i) {
         uint32_t ent_idx = component_pool_get_entity(sprite_pool, i);
-        Sprite *spr      = (Sprite *)component_pool_get_dense(sprite_pool, i);
+        SpriteComp *sc   = (SpriteComp *)component_pool_get_dense(sprite_pool, i);
 
         Entity ent = world_entity_from_index(app->world, ent_idx);
 
@@ -134,11 +135,14 @@ static void system_sprite_render(AppState *app, float alpha) {
         }
 
         // Bind the sprite's texture.
-        void *gpu_data = asset_manager_get_data(app->am, spr->texture);
+        void *gpu_data = asset_manager_get_data(app->am, sc->sprite.texture);
         renderer_bind_texture(app->renderer, gpu_data);
 
-        // Draw at interpolated world position with world scale.
-        renderer_draw_sprite(app->renderer, render_x, render_y, wt->sx, wt->sy, ent);
+        // Draw at interpolated world position with world scale + UV sub-region.
+        renderer_draw_sprite(app->renderer, render_x, render_y, wt->sx, wt->sy,
+                             ent,
+                             sc->sprite.uv_rect.x, sc->sprite.uv_rect.y,
+                             sc->sprite.uv_rect.w, sc->sprite.uv_rect.h);
     }
 }
 

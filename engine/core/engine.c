@@ -6,6 +6,7 @@
 #include "ecs/ecs.h"
 #include "scene.h"
 #include "scripting/lua_host.h"
+#include "anim_cache.h"
 
 #ifdef EDITOR_BUILD
 #include "../editor/editor.h"
@@ -50,6 +51,7 @@ struct Engine {
     AssetManager     *asset_manager;
     World            *world;
     LuaHost          *lua_host;       // created lazily on first script load
+    AnimCache        *anim_cache;     // shared animation data cache
     HierarchyContext  hctx;           // stored here so LuaHost can reference
     CameraContext     cam_ctx;        // stored here so LuaHost can reference
     Input             input;          // per-frame keyboard + mouse state
@@ -126,6 +128,18 @@ Engine *engine_create(const EngineConfig *config) {
     // --- Input system -------------------------------------------------------
     input_init(&engine->input);
     platform_set_input(engine->platform, &engine->input);
+
+    // --- Animation cache ----------------------------------------------------
+    engine->anim_cache = anim_cache_create();
+    if (engine->anim_cache == nullptr) {
+        fprintf(stderr, "[engine] animation cache creation failed\n");
+        world_destroy(engine->world);
+        asset_manager_destroy(engine->asset_manager);
+        renderer_destroy(&engine->renderer);
+        platform_destroy(engine->platform);
+        free(engine);
+        return nullptr;
+    }
 
     printf("[engine] created successfully (backend=%s)\n",
            config->backend == RENDERER_BACKEND_VULKAN ? "vulkan" : "opengl");
@@ -301,6 +315,12 @@ void engine_destroy(Engine *engine) {
         engine->lua_host = nullptr;
     }
 
+    // 2b. Animation cache.
+    if (engine->anim_cache != nullptr) {
+        anim_cache_destroy(engine->anim_cache);
+        engine->anim_cache = nullptr;
+    }
+
     // 3. Scene name.
     free(engine->current_scene);
     engine->current_scene = nullptr;
@@ -358,6 +378,10 @@ Input *engine_get_input(Engine *engine) {
 
 LuaHost *engine_get_lua_host(Engine *engine) {
     return engine != nullptr ? engine->lua_host : nullptr;
+}
+
+AnimCache *engine_get_anim_cache(Engine *engine) {
+    return engine != nullptr ? engine->anim_cache : nullptr;
 }
 
 HierarchyContext *engine_get_hctx(Engine *engine) {

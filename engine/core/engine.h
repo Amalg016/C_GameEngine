@@ -15,6 +15,7 @@ typedef struct Platform Platform;
 typedef struct HierarchyContext HierarchyContext;
 typedef struct CameraContext CameraContext;
 typedef struct LuaHost LuaHost;
+typedef struct AnimCache AnimCache;
 typedef uint32_t Entity;
 typedef uint8_t ComponentId;
 
@@ -113,6 +114,9 @@ CameraContext *engine_get_cam_ctx(Engine *engine);
 
 /// Access the engine's Lua scripting host.
 LuaHost *engine_get_lua_host(Engine *engine);
+
+/// Access the engine's animation data cache.
+AnimCache *engine_get_anim_cache(Engine *engine);
 
 /// Convenience: load a Lua script via the engine's LuaHost.
 /// The LuaHost is created lazily on first call.

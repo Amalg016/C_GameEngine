@@ -28,6 +28,8 @@ struct LuaHost {
     bool              velocity_registered;
     ComponentId       c_sprite;
     bool              sprite_registered;
+    ComponentId       c_animator;
+    bool              animator_registered;
     ComponentId       c_script;
     bool              script_registered;
 };
@@ -58,7 +60,14 @@ void        lua_host_set_sprite_id(LuaHost *h, ComponentId id) {
 }
 bool        lua_host_sprite_registered(LuaHost *h)         { return h->sprite_registered; }
 
-ComponentId lua_host_get_script_id(LuaHost *h)             { return h->c_script; }
+ComponentId lua_host_get_animator_id(LuaHost *h)            { return h->c_animator; }
+void        lua_host_set_animator_id(LuaHost *h, ComponentId id) {
+    h->c_animator = id;
+    h->animator_registered = true;
+}
+bool        lua_host_animator_registered(LuaHost *h)        { return h->animator_registered; }
+
+ComponentId lua_host_get_script_id(LuaHost *h)              { return h->c_script; }
 bool        lua_host_script_registered(LuaHost *h)         { return h->script_registered; }
 
 // ---------------------------------------------------------------------------

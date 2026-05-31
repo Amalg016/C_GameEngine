@@ -64,7 +64,8 @@ SRC_EDITOR := engine/editor/editor.c \
               engine/editor/panels/panel_content_browser.c \
               engine/editor/panels/panel_console.c \
               engine/editor/panels/panel_game_view.c \
-              engine/editor/panels/panel_sprite_editor.c
+              engine/editor/panels/panel_sprite_editor.c \
+              engine/editor/panels/panel_animation_editor.c
 
 # ImGui C++ sources from the cimgui submodule.
 SRC_IMGUI  := third_party/cimgui/cimgui.cpp \

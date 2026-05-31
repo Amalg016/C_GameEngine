@@ -18,6 +18,7 @@
 #include "panels/panel_content_browser.h"
 #include "panels/panel_console.h"
 #include "panels/panel_game_view.h"
+#include "panels/panel_sprite_editor.h"
 
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include "cimgui.h"
@@ -38,6 +39,7 @@ struct Editor {
     bool show_content_browser;
     bool show_console;
     bool show_game_view;
+    bool show_sprite_editor;
     bool show_demo_window;
 
     // Shared selection state (hierarchy ↔ inspector).
@@ -89,6 +91,7 @@ Editor *editor_create(Engine *engine) {
         .show_content_browser  = true,
         .show_console          = true,
         .show_game_view        = true,
+        .show_sprite_editor    = false,
         .show_demo_window      = false,
         .selected_entity       = 0,
         .has_selection         = false,
@@ -114,6 +117,9 @@ void editor_destroy(Editor *editor) {
             vkDeviceWaitIdle(device);
         }
     }
+
+    // Shut down sprite editor resources.
+    panel_sprite_editor_shutdown(r);
 
     imgui_layer_shutdown();
     free(editor);
@@ -186,6 +192,8 @@ static void editor_render_dockspace(Editor *editor) {
                                &editor->show_console, true);
             igMenuItem_BoolPtr("Game View",      nullptr,
                                &editor->show_game_view, true);
+            igMenuItem_BoolPtr("Sprite Editor",  nullptr,
+                               &editor->show_sprite_editor, true);
             igSeparator();
             igMenuItem_BoolPtr("ImGui Demo",     nullptr,
                                &editor->show_demo_window, true);
@@ -246,6 +254,12 @@ void editor_begin_frame(Editor *editor) {
         uint32_t fb_w = 800, fb_h = 600;
         platform_get_framebuffer_size(plat, &fb_w, &fb_h);
         panel_game_view_render(&editor->show_game_view, rend, fb_w, fb_h);
+    }
+
+    if (editor->show_sprite_editor) {
+        AssetManager *am   = engine_get_asset_manager(editor->engine);
+        Renderer     *rend = engine_get_renderer(editor->engine);
+        panel_sprite_editor_render(&editor->show_sprite_editor, am, rend);
     }
 
     Input *input = engine_get_input(editor->engine);

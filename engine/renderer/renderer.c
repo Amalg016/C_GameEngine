@@ -110,3 +110,20 @@ bool renderer_get_texture_size(Renderer *r, void *gpu_data,
     }
     return false;
 }
+
+#ifdef EDITOR_BUILD
+
+void *renderer_register_imgui_texture(Renderer *r, void *gpu_data) {
+    if (r != nullptr && r->api.register_imgui_texture != nullptr) {
+        return r->api.register_imgui_texture(r, gpu_data);
+    }
+    return nullptr;
+}
+
+void renderer_unregister_imgui_texture(Renderer *r, void *imgui_tex_id) {
+    if (r != nullptr && r->api.unregister_imgui_texture != nullptr) {
+        r->api.unregister_imgui_texture(r, imgui_tex_id);
+    }
+}
+
+#endif // EDITOR_BUILD

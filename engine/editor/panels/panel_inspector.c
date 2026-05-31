@@ -7,6 +7,7 @@
 
 #include "../../core/ecs/ecs.h"
 #include "../../core/asset_manager.h"
+#include "../../core/sprite.h"
 #include "../../core/scripting/lua_host.h"
 
 #include <lua5.4/lua.h>
@@ -31,7 +32,7 @@ extern bool        lua_host_script_registered(LuaHost *host);
 // ---------------------------------------------------------------------------
 
 typedef struct InspectorSprite {
-    AssetHandle texture;
+    Sprite sprite;
 } InspectorSprite;
 
 typedef struct InspectorVelocity {
@@ -264,7 +265,7 @@ void panel_inspector_render(bool *p_open,
                 // Display texture path (read-only).
                 const char *tex_path = nullptr;
                 if (am != nullptr) {
-                    tex_path = asset_manager_get_path(am, spr->texture);
+                    tex_path = asset_manager_get_path(am, spr->sprite.texture);
                 }
                 if (tex_path != nullptr) {
                     igText("Texture: %s", tex_path);
@@ -272,8 +273,26 @@ void panel_inspector_render(bool *p_open,
                     igTextDisabled("Texture: (none)");
                 }
 
+                // Texture dimensions.
+                igText("Tex Size: %ux%u", spr->sprite.tex_width,
+                       spr->sprite.tex_height);
+
+                // Pixel rect.
+                igText("Pixel Rect: (%.0f, %.0f) %.0fx%.0f",
+                       spr->sprite.rect.x, spr->sprite.rect.y,
+                       spr->sprite.rect.w, spr->sprite.rect.h);
+
+                // UV rect (read-only).
                 igBeginDisabled(true);
-                uint32_t handle_val = (uint32_t)spr->texture;
+                float uv[4] = {
+                    spr->sprite.uv_rect.x, spr->sprite.uv_rect.y,
+                    spr->sprite.uv_rect.w, spr->sprite.uv_rect.h
+                };
+                igDragFloat4("UV Rect", uv, 0.0f, 0.0f, 0.0f, "%.3f", 0);
+                igEndDisabled();
+
+                igBeginDisabled(true);
+                uint32_t handle_val = (uint32_t)spr->sprite.texture;
                 igDragScalar("Handle", ImGuiDataType_U32,
                              &handle_val, 0.0f, nullptr, nullptr, "%u", 0);
                 igEndDisabled();

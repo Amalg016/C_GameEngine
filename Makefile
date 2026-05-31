@@ -30,6 +30,7 @@ SRC_ENGINE := engine/renderer/renderer.c \
               engine/core/input.c \
               engine/core/scene.c \
               engine/core/sprite.c \
+              engine/core/sprite_meta.c \
               engine/core/ecs/component_pool.c \
               engine/core/ecs/world.c \
               engine/core/ecs/hierarchy.c \
@@ -60,7 +61,8 @@ SRC_EDITOR := engine/editor/editor.c \
               engine/editor/panels/panel_inspector.c \
               engine/editor/panels/panel_content_browser.c \
               engine/editor/panels/panel_console.c \
-              engine/editor/panels/panel_game_view.c
+              engine/editor/panels/panel_game_view.c \
+              engine/editor/panels/panel_sprite_editor.c
 
 # ImGui C++ sources from the cimgui submodule.
 SRC_IMGUI  := third_party/cimgui/cimgui.cpp \

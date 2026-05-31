@@ -60,6 +60,15 @@ typedef struct RendererAPI {
     /// Returns true on success, false if gpu_data is nullptr.
     bool  (*get_texture_size)(Renderer *self, void *gpu_data,
                               uint32_t *out_w, uint32_t *out_h);
+
+#ifdef EDITOR_BUILD
+    /// Register a loaded GPU texture with ImGui for display in editor panels.
+    /// Returns an opaque ImGui texture ID (cast to void*), or nullptr.
+    void *(*register_imgui_texture)(Renderer *self, void *gpu_data);
+
+    /// Unregister a texture previously registered with register_imgui_texture.
+    void  (*unregister_imgui_texture)(Renderer *self, void *imgui_tex_id);
+#endif
 } RendererAPI;
 
 struct Renderer {
@@ -95,5 +104,10 @@ void  renderer_destroy_texture(Renderer *r, void *gpu_data);
 void  renderer_bind_texture(Renderer *r, void *gpu_data);
 bool  renderer_get_texture_size(Renderer *r, void *gpu_data,
                                 uint32_t *out_w, uint32_t *out_h);
+
+#ifdef EDITOR_BUILD
+void *renderer_register_imgui_texture(Renderer *r, void *gpu_data);
+void  renderer_unregister_imgui_texture(Renderer *r, void *imgui_tex_id);
+#endif
 
 #endif // ENGINE_RENDERER_H

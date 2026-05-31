@@ -24,6 +24,7 @@ static void vulkan_update_descriptor_sets(VulkanContext *ctx,
 #ifdef EDITOR_BUILD
 static void vulkan_offscreen_destroy(VulkanContext *ctx);
 static bool vulkan_offscreen_create(VulkanContext *ctx, uint32_t width, uint32_t height);
+#include "../../editor/ui/imgui_vulkan_bridge.h"
 #endif
 
 // ---------------------------------------------------------------------------
@@ -810,6 +811,25 @@ static bool vulkan_get_texture_size(Renderer *self, void *gpu_data,
     return true;
 }
 
+#ifdef EDITOR_BUILD
+
+/// Register a GPU texture with ImGui for display in editor panels.
+static void *vulkan_register_imgui_texture(Renderer *self, void *gpu_data) {
+    (void)self;
+    VulkanTexture *tex = (VulkanTexture *)gpu_data;
+    if (tex == nullptr) return nullptr;
+    return imgui_bridge_add_texture(tex->sampler, tex->view,
+                                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+}
+
+/// Unregister a texture from ImGui.
+static void vulkan_unregister_imgui_texture(Renderer *self, void *imgui_tex_id) {
+    (void)self;
+    imgui_bridge_remove_texture(imgui_tex_id);
+}
+
+#endif // EDITOR_BUILD
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -836,6 +856,10 @@ Renderer vulkan_renderer_create(Platform *platform) {
             .destroy_texture     = vulkan_destroy_texture_cb,
             .bind_texture        = vulkan_bind_texture,
             .get_texture_size    = vulkan_get_texture_size,
+#ifdef EDITOR_BUILD
+            .register_imgui_texture   = vulkan_register_imgui_texture,
+            .unregister_imgui_texture = vulkan_unregister_imgui_texture,
+#endif
         },
         .backend_data = ctx,
     };

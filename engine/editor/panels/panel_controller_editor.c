@@ -112,85 +112,58 @@ static void load_source_animation(void) {
     s_ctrl.anim_path[AnimPathMaxLen - 1] = '\0';
 }
 
-/// Try loading an existing .controller.meta for the current anim path.
-static void try_load_controller(void) {
-    if (s_anim_path[0] == '\0') return;
 
-    char ctrl_path[AnimPathMaxLen];
-    build_controller_save_path(ctrl_path, AnimPathMaxLen);
-
-    AnimController tmp = {};
-    anim_controller_init(&tmp);
-    if (anim_controller_load(ctrl_path, &tmp)) {
-        s_ctrl = tmp;
-        s_ctrl_loaded = true;
-        s_selected_state = (s_ctrl.state_count > 0) ? 0 : -1;
-        s_selected_trans = -1;
-        extract_controller_name_from_path(ctrl_path);
-        console_log("[ctrl_editor] Loaded controller: %s", ctrl_path);
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Internal — draw toolbar.
 // ---------------------------------------------------------------------------
 
 static void draw_toolbar(void) {
-    igText("Animation:");
+    igText("Controller Name:");
     igSameLine(0.0f, 4.0f);
-    igSetNextItemWidth(200.0f);
-    igInputText("##ctrl_anim_path", s_anim_path, sizeof(s_anim_path),
+    igSetNextItemWidth(130.0f);
+    igInputText("##ctrl_name", s_controller_name, sizeof(s_controller_name),
                 0, nullptr, nullptr);
 
-    // Drop target for drag-and-drop animation or controller files.
+    igSameLine(0.0f, 12.0f);
+    igText("Animation path:");
+    igSameLine(0.0f, 4.0f);
+    
+    char anim_label[AnimPathMaxLen + 32];
+    if (s_ctrl.anim_path[0] != '\0') {
+        snprintf(anim_label, sizeof(anim_label), "%s##anim_btn", s_ctrl.anim_path);
+    } else {
+        snprintf(anim_label, sizeof(anim_label), "(none - drop .anim.meta/.png here)##anim_btn");
+    }
+
+    igPushStyleColor_Vec4(ImGuiCol_Button, (ImVec4){ 0.15f, 0.15f, 0.20f, 1.0f });
+    igPushStyleColor_Vec4(ImGuiCol_ButtonHovered, (ImVec4){ 0.20f, 0.25f, 0.35f, 1.0f });
+    igPushStyleColor_Vec4(ImGuiCol_ButtonActive, (ImVec4){ 0.18f, 0.22f, 0.30f, 1.0f });
+    igButton(anim_label, (ImVec2){ 250.0f, 0.0f });
+    igPopStyleColor(3);
+
     if (igBeginDragDropTarget()) {
         const ImGuiPayload *payload = igAcceptDragDropPayload("ASSET_PATH", 0);
         if (payload != nullptr) {
             const char *dropped = (const char *)payload->Data;
             if (dropped != nullptr) {
-                if (strstr(dropped, ".controller.meta") != nullptr) {
-                    AnimController tmp = {};
-                    anim_controller_init(&tmp);
-                    if (anim_controller_load(dropped, &tmp)) {
-                        s_ctrl = tmp;
-                        s_ctrl_loaded = true;
-                        s_selected_state = (s_ctrl.state_count > 0) ? 0 : -1;
-                        s_selected_trans = -1;
-                        strncpy(s_anim_path, tmp.anim_path, sizeof(s_anim_path) - 1);
-                        s_anim_path[sizeof(s_anim_path) - 1] = '\0';
-                        load_source_animation();
-                        extract_controller_name_from_path(dropped);
-                        console_log("[ctrl_editor] Loaded dropped controller: %s", dropped);
-                    }
+                char meta_path[AnimPathMaxLen] = {};
+                if (strstr(dropped, ".anim.meta") != nullptr) {
+                    strncpy(meta_path, dropped, AnimPathMaxLen - 1);
                 } else if (strstr(dropped, ".png") != nullptr) {
-                    anim_build_meta_path(dropped, s_anim_path, sizeof(s_anim_path));
+                    anim_build_meta_path(dropped, meta_path, AnimPathMaxLen);
+                }
+                if (meta_path[0] != '\0') {
+                    strncpy(s_ctrl.anim_path, meta_path, AnimPathMaxLen - 1);
+                    s_ctrl.anim_path[AnimPathMaxLen - 1] = '\0';
+                    strncpy(s_anim_path, meta_path, AnimPathMaxLen - 1);
+                    s_anim_path[AnimPathMaxLen - 1] = '\0';
                     load_source_animation();
-                    try_load_controller();
-                } else {
-                    strncpy(s_anim_path, dropped, sizeof(s_anim_path) - 1);
-                    s_anim_path[sizeof(s_anim_path) - 1] = '\0';
-                    load_source_animation();
-                    try_load_controller();
                 }
             }
         }
         igEndDragDropTarget();
     }
-
-    igSameLine(0.0f, 4.0f);
-    if (igButton("Load##ctrl_load", (ImVec2){ 50, 0 })) {
-        load_source_animation();
-        try_load_controller();
-    }
-
-    igSameLine(0.0f, 8.0f);
-    igText("Controller Name:");
-    igSameLine(0.0f, 4.0f);
-    igSetNextItemWidth(140.0f);
-    igInputText("##ctrl_name", s_controller_name, sizeof(s_controller_name),
-                0, nullptr, nullptr);
-
-    if (!s_anim_loaded) return;
 
     igSameLine(0.0f, 12.0f);
     if (igButton("Save .controller.meta", (ImVec2){ 170, 0 })) {
@@ -205,8 +178,8 @@ static void draw_toolbar(void) {
     }
 
     igSameLine(0.0f, 8.0f);
-    igText("%u clips  |  %u states  |  %u params",
-           s_anim_data.clip_count, s_ctrl.state_count, s_ctrl.param_count);
+    igTextDisabled("%u clips | %u states | %u params",
+           s_anim_loaded ? s_anim_data.clip_count : 0, s_ctrl.state_count, s_ctrl.param_count);
 }
 
 // ---------------------------------------------------------------------------
@@ -605,18 +578,117 @@ void panel_controller_editor_render(bool *p_open,
         return;
     }
 
+    // ---- Empty state view (Create or Load Controller) ---------------------
+    if (!s_ctrl_loaded) {
+        igPushStyleColor_Vec4(ImGuiCol_ChildBg, (ImVec4){ 0.11f, 0.11f, 0.14f, 1.0f });
+        igBeginChild_Str("##empty_view", (ImVec2){ 0, 0 }, ImGuiChildFlags_Borders, ImGuiWindowFlags_None);
+        
+        float win_w = igGetWindowWidth();
+        float win_h = igGetWindowHeight();
+        
+        igSetCursorPosY(win_h * 0.20f);
+        
+        igSetCursorPosX((win_w - 300.0f) * 0.5f);
+        igTextColored((ImVec4){ 0.4f, 0.8f, 1.0f, 1.0f }, "🌌 ANIMATION CONTROLLER EDITOR");
+        
+        igSpacing();
+        igSetCursorPosX((win_w - 460.0f) * 0.5f);
+        igTextDisabled("Create a state-machine based animator controller or load an existing one.");
+        
+        igSpacing();
+        igSpacing();
+        
+        igSetCursorPosX((win_w - 320.0f) * 0.5f);
+        igText("New Controller Name:");
+        igSameLine(0.0f, 8.0f);
+        igSetNextItemWidth(140.0f);
+        igInputText("##empty_ctrl_name", s_controller_name, sizeof(s_controller_name), 0, nullptr, nullptr);
+        
+        igSpacing();
+        igSpacing();
+        
+        igSetCursorPosX((win_w - 200.0f) * 0.5f);
+        if (igButton("Create Empty Controller", (ImVec2){ 200, 35 })) {
+            anim_controller_init(&s_ctrl);
+            s_ctrl_loaded = true;
+            s_anim_loaded = false;
+            s_anim_path[0] = '\0';
+            s_ctrl.anim_path[0] = '\0';
+            s_selected_state = -1;
+            s_selected_trans = -1;
+            console_log("[ctrl_editor] Created empty controller: %s", s_controller_name);
+        }
+        
+        igSpacing();
+        igSpacing();
+        
+        // Big premium drag and drop zone
+        igSetCursorPosX((win_w - 400.0f) * 0.5f);
+        igBeginChild_Str("##drop_zone_box", (ImVec2){ 400, 100 }, ImGuiChildFlags_Borders, ImGuiWindowFlags_None);
+        igSetCursorPosY(40.0f);
+        igSetCursorPosX((400.0f - 300.0f) * 0.5f);
+        igTextColored((ImVec4){ 0.5f, 0.5f, 0.7f, 1.0f }, "📥 Drop .controller.meta or .anim.meta here");
+        igEndChild();
+        
+        if (igBeginDragDropTarget()) {
+            const ImGuiPayload *payload = igAcceptDragDropPayload("ASSET_PATH", 0);
+            if (payload != nullptr) {
+                const char *dropped = (const char *)payload->Data;
+                if (dropped != nullptr) {
+                    if (strstr(dropped, ".controller.meta") != nullptr) {
+                        AnimController tmp = {};
+                        anim_controller_init(&tmp);
+                        if (anim_controller_load(dropped, &tmp)) {
+                            s_ctrl = tmp;
+                            s_ctrl_loaded = true;
+                            s_selected_state = (s_ctrl.state_count > 0) ? 0 : -1;
+                            s_selected_trans = -1;
+                            strncpy(s_anim_path, tmp.anim_path, sizeof(s_anim_path) - 1);
+                            s_anim_path[sizeof(s_anim_path) - 1] = '\0';
+                            load_source_animation();
+                            extract_controller_name_from_path(dropped);
+                            console_log("[ctrl_editor] Loaded dropped controller: %s", dropped);
+                        }
+                    } else if (strstr(dropped, ".anim.meta") != nullptr || strstr(dropped, ".png") != nullptr) {
+                        anim_controller_init(&s_ctrl);
+                        s_ctrl_loaded = true;
+                        if (strstr(dropped, ".png") != nullptr) {
+                            anim_build_meta_path(dropped, s_anim_path, sizeof(s_anim_path));
+                        } else {
+                            strncpy(s_anim_path, dropped, sizeof(s_anim_path) - 1);
+                            s_anim_path[sizeof(s_anim_path) - 1] = '\0';
+                        }
+                        load_source_animation();
+                    }
+                }
+            }
+            igEndDragDropTarget();
+        }
+        
+        igEndChild();
+        igPopStyleColor(1);
+        igEnd();
+        return;
+    }
+
     // ---- Menu bar ---------------------------------------------------------
     if (igBeginMenuBar()) {
         if (igBeginMenu("File", true)) {
-            if (igMenuItem_Bool("Save", "Ctrl+S", false,
-                                s_anim_loaded)) {
+            if (igMenuItem_Bool("Save", "Ctrl+S", false, s_ctrl_loaded)) {
                 char ctrl_path[AnimPathMaxLen];
-                anim_ctrl_build_meta_path(s_anim_path, ctrl_path,
-                                          AnimPathMaxLen);
+                build_controller_save_path(ctrl_path, AnimPathMaxLen);
                 if (anim_controller_save(&s_ctrl, ctrl_path)) {
                     s_ctrl_loaded = true;
                     console_log("[ctrl_editor] Saved: %s", ctrl_path);
+                } else {
+                    console_log("[ctrl_editor] Failed to save: %s", ctrl_path);
                 }
+            }
+            if (igMenuItem_Bool("Close Controller", nullptr, false, true)) {
+                s_ctrl_loaded = false;
+                s_anim_loaded = false;
+                s_selected_state = -1;
+                s_selected_trans = -1;
             }
             igEndMenu();
         }
@@ -626,14 +698,31 @@ void panel_controller_editor_render(bool *p_open,
     // ---- Toolbar ----------------------------------------------------------
     draw_toolbar();
 
-    if (!s_anim_loaded) {
-        igTextDisabled("Load an .anim.meta file to begin authoring a "
-                       "controller.");
-        igEnd();
-        return;
-    }
-
     igSeparator();
+
+    // Drop target across the whole panel window for loading clips
+    if (igBeginDragDropTarget()) {
+        const ImGuiPayload *payload = igAcceptDragDropPayload("ASSET_PATH", 0);
+        if (payload != nullptr) {
+            const char *dropped = (const char *)payload->Data;
+            if (dropped != nullptr) {
+                char meta_path[AnimPathMaxLen] = {};
+                if (strstr(dropped, ".anim.meta") != nullptr) {
+                    strncpy(meta_path, dropped, AnimPathMaxLen - 1);
+                } else if (strstr(dropped, ".png") != nullptr) {
+                    anim_build_meta_path(dropped, meta_path, AnimPathMaxLen);
+                }
+                if (meta_path[0] != '\0') {
+                    strncpy(s_ctrl.anim_path, meta_path, AnimPathMaxLen - 1);
+                    s_ctrl.anim_path[AnimPathMaxLen - 1] = '\0';
+                    strncpy(s_anim_path, meta_path, AnimPathMaxLen - 1);
+                    s_anim_path[AnimPathMaxLen - 1] = '\0';
+                    load_source_animation();
+                }
+            }
+        }
+        igEndDragDropTarget();
+    }
 
     // ---- Layout: params (left) | states (center) | editor (right) ---------
     float avail_w = igGetContentRegionAvail().x;

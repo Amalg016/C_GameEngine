@@ -154,8 +154,7 @@ static bool render_entry(const char *name, const char *full_path,
                          bool dir_entry) {
     // Skip .sprite.meta and .anim.meta files — shown as sub-items.
     if (!dir_entry && (is_sprite_meta_file(name) ||
-                       is_anim_meta_file(name) ||
-                       is_controller_meta_file(name))) {
+                       is_anim_meta_file(name))) {
         return false;
     }
 
@@ -263,7 +262,11 @@ static bool render_entry(const char *name, const char *full_path,
     } else {
         // ---- Regular file entry -----------------------------------------------
         char label[PathMaxLen];
-        snprintf(label, PathMaxLen, "    %s", name);
+        if (is_controller_meta_file(name)) {
+            snprintf(label, PathMaxLen, "    \xf0\x9f\x8e\xae %s", name);
+        } else {
+            snprintf(label, PathMaxLen, "    %s", name);
+        }
 
         if (igSelectable_Bool(label, false, 0, (ImVec2){ 0, 0 })) {
             // Single click.

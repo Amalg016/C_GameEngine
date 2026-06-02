@@ -552,25 +552,23 @@ void panel_inspector_render(bool *p_open,
                 if (ap != nullptr && acache != nullptr) {
                     const char *path = (const char *)ap->Data;
                     if (path != nullptr) {
+                        char ctrl_path[AnimPathMaxLen] = {};
                         if (strstr(path, ".controller.meta") != nullptr) {
-                            AnimController *ctrl = anim_cache_load_controller(acache, path);
+                            strncpy(ctrl_path, path, AnimPathMaxLen - 1);
+                        } else if (strstr(path, ".anim.meta") != nullptr) {
+                            anim_ctrl_build_meta_path(path, ctrl_path, AnimPathMaxLen);
+                        } else if (strstr(path, ".png") != nullptr) {
+                            char anim_meta[AnimPathMaxLen] = {};
+                            anim_build_meta_path(path, anim_meta, AnimPathMaxLen);
+                            anim_ctrl_build_meta_path(anim_meta, ctrl_path, AnimPathMaxLen);
+                        }
+                        if (ctrl_path[0] != '\0') {
+                            AnimController *ctrl = anim_cache_load_controller(acache, ctrl_path, am);
                             if (ctrl != nullptr) {
-                                strncpy(ia->animator.controller_path, path, AnimPathMaxLen - 1);
+                                strncpy(ia->animator.controller_path, ctrl_path, AnimPathMaxLen - 1);
                                 ia->animator.controller = ctrl;
                                 animator_reset_params(&ia->animator);
                                 ia->animator.current_state = ctrl->default_state;
-                                ia->animator.playing = true;
-                            }
-                        } else if (strstr(path, ".anim.meta") != nullptr) {
-                            AnimData *ad = anim_cache_load(acache, path);
-                            if (ad != nullptr) {
-                                strncpy(ia->animator.anim_path, path, AnimPathMaxLen - 1);
-                                ia->animator.anim_data = ad;
-                                ia->animator.texture = asset_manager_load_texture(am, ad->texture_path);
-                                asset_manager_get_texture_size(am, ia->animator.texture, &ia->animator.tex_width, &ia->animator.tex_height);
-                                ia->animator.current_clip = 0;
-                                ia->animator.current_frame = 0;
-                                ia->animator.elapsed = 0.0f;
                                 ia->animator.playing = true;
                             }
                         }
@@ -586,54 +584,6 @@ void panel_inspector_render(bool *p_open,
                 igEndPopup();
             }
             if (header_open) {
-                // Animation file path.
-                igText("Animation");
-                igSameLine(0.0f, 8.0f);
-
-                char anim_label[AnimPathMaxLen + 32];
-                if (ia->animator.anim_path[0] != '\0') {
-                    snprintf(anim_label, sizeof(anim_label), "%s##anim_path_btn", ia->animator.anim_path);
-                } else {
-                    snprintf(anim_label, sizeof(anim_label), "(none — drop .anim.meta here)##anim_path_btn");
-                }
-
-                igPushStyleColor_Vec4(ImGuiCol_Button, (ImVec4){ 0.15f, 0.15f, 0.20f, 1.0f });
-                igPushStyleColor_Vec4(ImGuiCol_ButtonHovered, (ImVec4){ 0.20f, 0.25f, 0.35f, 1.0f });
-                igPushStyleColor_Vec4(ImGuiCol_ButtonActive, (ImVec4){ 0.18f, 0.22f, 0.30f, 1.0f });
-                igButton(anim_label, (ImVec2){ -1.0f, 0.0f });
-                igPopStyleColor(3);
-
-                if (igBeginDragDropTarget()) {
-                    const ImGuiPayload *ap = igAcceptDragDropPayload("ASSET_PATH", 0);
-                    if (ap != nullptr && acache != nullptr) {
-                        const char *path = (const char *)ap->Data;
-                        if (path != nullptr) {
-                            char meta_path[AnimPathMaxLen] = {};
-                            if (strstr(path, ".anim.meta") != nullptr) {
-                                strncpy(meta_path, path, AnimPathMaxLen - 1);
-                            } else if (strstr(path, ".png") != nullptr) {
-                                anim_build_meta_path(path, meta_path, AnimPathMaxLen);
-                            }
-                            if (meta_path[0] != '\0') {
-                                AnimData *ad = anim_cache_load(acache, meta_path);
-                                if (ad != nullptr) {
-                                    strncpy(ia->animator.anim_path, meta_path, AnimPathMaxLen - 1);
-                                    ia->animator.anim_data = ad;
-
-                                    ia->animator.texture = asset_manager_load_texture(am, ad->texture_path);
-                                    asset_manager_get_texture_size(am, ia->animator.texture, &ia->animator.tex_width, &ia->animator.tex_height);
-
-                                    ia->animator.current_clip = 0;
-                                    ia->animator.current_frame = 0;
-                                    ia->animator.elapsed = 0.0f;
-                                    ia->animator.playing = true;
-                                }
-                            }
-                        }
-                    }
-                    igEndDragDropTarget();
-                }
-
                 // Controller file path.
                 igText("Controller");
                 igSameLine(0.0f, 8.0f);
@@ -667,7 +617,7 @@ void panel_inspector_render(bool *p_open,
                                 anim_ctrl_build_meta_path(anim_meta, ctrl_path, AnimPathMaxLen);
                             }
                             if (ctrl_path[0] != '\0') {
-                                AnimController *ctrl = anim_cache_load_controller(acache, ctrl_path);
+                                AnimController *ctrl = anim_cache_load_controller(acache, ctrl_path, am);
                                 if (ctrl != nullptr) {
                                     strncpy(ia->animator.controller_path, ctrl_path, AnimPathMaxLen - 1);
                                     ia->animator.controller = ctrl;
@@ -693,10 +643,11 @@ void panel_inspector_render(bool *p_open,
                     }
                 }
 
-                // Clip selector.
-                if (ia->animator.anim_data != nullptr &&
-                    ia->animator.anim_data->clip_count > 0) {
-                    AnimData *ad = ia->animator.anim_data;
+                // Clip selector and status (if controller and anim_data are loaded).
+                if (ia->animator.controller != nullptr &&
+                    ia->animator.controller->anim_data != nullptr &&
+                    ia->animator.controller->anim_data->clip_count > 0) {
+                    AnimData *ad = ia->animator.controller->anim_data;
 
                     // Current clip name for preview label.
                     const char *current_name = "(none)";

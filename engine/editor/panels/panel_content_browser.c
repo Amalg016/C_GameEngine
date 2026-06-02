@@ -4,6 +4,7 @@
 
 #include "../../core/sprite_meta.h"
 #include "../../core/animation.h"
+#include "../../core/anim_controller.h"
 
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include "cimgui.h"
@@ -67,6 +68,11 @@ static bool is_sprite_meta_file(const char *name) {
 /// Returns true if `name` ends with `.anim.meta`.
 static bool is_anim_meta_file(const char *name) {
     return has_suffix(name, ".anim.meta");
+}
+
+/// Returns true if `name` ends with `.controller.meta`.
+static bool is_controller_meta_file(const char *name) {
+    return has_suffix(name, ".controller.meta");
 }
 
 // ---------------------------------------------------------------------------
@@ -147,16 +153,25 @@ static void render_sprite_sub_items(const char *full_path,
 static bool render_entry(const char *name, const char *full_path,
                          bool dir_entry) {
     // Skip .sprite.meta and .anim.meta files — shown as sub-items.
-    if (!dir_entry && (is_sprite_meta_file(name) || is_anim_meta_file(name))) {
+    if (!dir_entry && (is_sprite_meta_file(name) ||
+                       is_anim_meta_file(name) ||
+                       is_controller_meta_file(name))) {
         return false;
     }
 
     // Check if this image file has a sprite meta or anim meta.
     bool has_meta = false;
     bool has_anim = false;
+    bool has_ctrl = false;
     if (!dir_entry && is_image_file(name)) {
         has_meta = sprite_meta_exists(full_path);
         has_anim = anim_meta_exists(full_path);
+        // Check for controller: build .anim.meta path first, then check.
+        if (has_anim) {
+            char anim_path_tmp[AnimPathMaxLen];
+            anim_build_meta_path(full_path, anim_path_tmp, AnimPathMaxLen);
+            has_ctrl = anim_ctrl_meta_exists(anim_path_tmp);
+        }
     }
 
     if (dir_entry) {
@@ -217,6 +232,31 @@ static bool render_entry(const char *name, const char *full_path,
                     }
                 }
             }
+
+                // Show controller info if .controller.meta exists.
+                if (has_ctrl) {
+                    char anim_path_buf[AnimPathMaxLen];
+                    anim_build_meta_path(full_path, anim_path_buf,
+                                         AnimPathMaxLen);
+                    char ctrl_path[AnimPathMaxLen];
+                    anim_ctrl_build_meta_path(anim_path_buf, ctrl_path,
+                                              AnimPathMaxLen);
+
+                    AnimController ctrl_data;
+                    anim_controller_init(&ctrl_data);
+                    if (anim_controller_load(ctrl_path, &ctrl_data)) {
+                        igPushID_Int(5000);
+                        char ctrl_label[256];
+                        snprintf(ctrl_label, sizeof(ctrl_label),
+                                 "    \xf0\x9f\x8e\xae Controller  "
+                                 "(%u states, %u params)",
+                                 ctrl_data.state_count,
+                                 ctrl_data.param_count);
+                        igSelectable_Bool(ctrl_label, false, 0,
+                                          (ImVec2){ 0, 0 });
+                        igPopID();
+                    }
+                }
 
             igTreePop();
         }

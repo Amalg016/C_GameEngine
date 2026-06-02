@@ -20,6 +20,7 @@
 #include "panels/panel_game_view.h"
 #include "panels/panel_sprite_editor.h"
 #include "panels/panel_animation_editor.h"
+#include "panels/panel_controller_editor.h"
 
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include "cimgui.h"
@@ -42,6 +43,7 @@ struct Editor {
     bool show_game_view;
     bool show_sprite_editor;
     bool show_animation_editor;
+    bool show_controller_editor;
     bool show_demo_window;
 
     // Shared selection state (hierarchy ↔ inspector).
@@ -95,6 +97,7 @@ Editor *editor_create(Engine *engine) {
         .show_game_view        = true,
         .show_sprite_editor    = false,
         .show_animation_editor = false,
+        .show_controller_editor = false,
         .show_demo_window      = false,
         .selected_entity       = 0,
         .has_selection         = false,
@@ -124,6 +127,7 @@ void editor_destroy(Editor *editor) {
     // Shut down sprite editor resources.
     panel_sprite_editor_shutdown(r);
     panel_animation_editor_shutdown(r);
+    panel_controller_editor_shutdown(r);
 
     imgui_layer_shutdown();
     free(editor);
@@ -200,6 +204,8 @@ static void editor_render_dockspace(Editor *editor) {
                                &editor->show_sprite_editor, true);
             igMenuItem_BoolPtr("Animation Editor", nullptr,
                                &editor->show_animation_editor, true);
+            igMenuItem_BoolPtr("Controller Editor", nullptr,
+                               &editor->show_controller_editor, true);
             igSeparator();
             igMenuItem_BoolPtr("ImGui Demo",     nullptr,
                                &editor->show_demo_window, true);
@@ -272,6 +278,13 @@ void editor_begin_frame(Editor *editor) {
         AssetManager *am   = engine_get_asset_manager(editor->engine);
         Renderer     *rend = engine_get_renderer(editor->engine);
         panel_animation_editor_render(&editor->show_animation_editor, am, rend);
+    }
+
+    if (editor->show_controller_editor) {
+        AssetManager *am   = engine_get_asset_manager(editor->engine);
+        Renderer     *rend = engine_get_renderer(editor->engine);
+        panel_controller_editor_render(&editor->show_controller_editor,
+                                       am, rend);
     }
 
     Input *input = engine_get_input(editor->engine);

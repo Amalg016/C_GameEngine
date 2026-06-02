@@ -10,6 +10,7 @@
 #include "../../core/sprite.h"
 #include "../../core/sprite_meta.h"
 #include "../../core/animation.h"
+#include "../../core/anim_controller.h"
 #include "../../core/scripting/lua_host.h"
 
 #include <lua5.4/lua.h>
@@ -469,6 +470,25 @@ void panel_inspector_render(bool *p_open,
                         ? ia->animator.anim_path
                         : "(none)");
 
+                // Controller path.
+                if (ia->animator.controller_path[0] != '\0') {
+                    igText("Controller:");
+                    igSameLine(0.0f, 4.0f);
+                    igTextDisabled("%s", ia->animator.controller_path);
+                }
+
+                // Current state (if controller attached).
+                if (ia->animator.controller != nullptr) {
+                    const AnimController *ctrl = ia->animator.controller;
+                    if (ia->animator.current_state < ctrl->state_count) {
+                        igText("State:");
+                        igSameLine(0.0f, 4.0f);
+                        igTextColored((ImVec4){ 0.4f, 0.8f, 1.0f, 1.0f },
+                                      "%s",
+                                      ctrl->states[ia->animator.current_state].name);
+                    }
+                }
+
                 // Clip selector.
                 if (ia->animator.anim_data != nullptr &&
                     ia->animator.anim_data->clip_count > 0) {
@@ -518,6 +538,55 @@ void panel_inspector_render(bool *p_open,
                     }
                 } else {
                     igTextDisabled("No animation data loaded.");
+                }
+
+                // Runtime parameters (if controller attached).
+                if (ia->animator.controller != nullptr &&
+                    ia->animator.controller->param_count > 0) {
+                    igSeparator();
+                    igText("Parameters:");
+                    const AnimController *ctrl = ia->animator.controller;
+                    for (uint32_t pi = 0; pi < ctrl->param_count; ++pi) {
+                        igPushID_Int((int)(pi + 8000));
+                        const AnimParam *p = &ctrl->params[pi];
+
+                        switch (p->type) {
+                            case ANIM_PARAM_FLOAT:
+                                igSetNextItemWidth(100.0f);
+                                igDragFloat(p->name,
+                                            &ia->animator.params[pi].f,
+                                            0.1f, -9999.0f, 9999.0f,
+                                            "%.2f", 0);
+                                break;
+                            case ANIM_PARAM_INT: {
+                                int val = (int)ia->animator.params[pi].i;
+                                igSetNextItemWidth(100.0f);
+                                if (igDragInt(p->name, &val, 1.0f,
+                                              -9999, 9999, "%d", 0)) {
+                                    ia->animator.params[pi].i = (int32_t)val;
+                                }
+                                break;
+                            }
+                            case ANIM_PARAM_BOOL:
+                                igCheckbox(p->name,
+                                           &ia->animator.params[pi].b);
+                                break;
+                            case ANIM_PARAM_TRIGGER: {
+                                char btn_label[80];
+                                snprintf(btn_label, sizeof(btn_label),
+                                         "%s##trig", p->name);
+                                if (igButton(btn_label, (ImVec2){ 0, 0 })) {
+                                    ia->animator.params[pi].b = true;
+                                }
+                                igSameLine(0.0f, 4.0f);
+                                igTextDisabled("%s",
+                                    ia->animator.params[pi].b
+                                        ? "(set)" : "(idle)");
+                                break;
+                            }
+                        }
+                        igPopID();
+                    }
                 }
             }
         }

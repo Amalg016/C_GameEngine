@@ -4,6 +4,7 @@
 #include "asset_manager.h"
 #include "sprite.h"
 #include "animation.h"
+#include "anim_controller.h"
 #include "anim_cache.h"
 #include "../renderer/renderer.h"
 
@@ -556,7 +557,70 @@ bool scene_load(Engine *engine, const char *filepath) {
                             sa.animator.tex_height = th;
                             sa.animator.anim_data  = ad;
 
-                            // Optionally start a specific clip.
+                            // Load controller (optional).
+                            cJSON *ctrl_item = cJSON_GetObjectItemCaseSensitive(
+                                anim_json, "controller");
+                            if (cJSON_IsString(ctrl_item) && acache != nullptr) {
+                                const char *ctrl_path = ctrl_item->valuestring;
+                                AnimController *ctrl =
+                                    anim_cache_load_controller(acache, ctrl_path);
+                                if (ctrl != nullptr) {
+                                    strncpy(sa.animator.controller_path,
+                                            ctrl_path, AnimPathMaxLen - 1);
+                                    sa.animator.controller_path[
+                                        AnimPathMaxLen - 1] = '\0';
+                                    sa.animator.controller = ctrl;
+                                    sa.animator.current_state =
+                                        ctrl->default_state;
+                                    animator_reset_params(&sa.animator);
+
+                                    // Override saved params if present.
+                                    cJSON *params_j =
+                                        cJSON_GetObjectItemCaseSensitive(
+                                            anim_json, "params");
+                                    if (cJSON_IsObject(params_j)) {
+                                        for (uint32_t pi = 0;
+                                             pi < ctrl->param_count; ++pi) {
+                                            cJSON *pv =
+                                                cJSON_GetObjectItemCaseSensitive(
+                                                    params_j,
+                                                    ctrl->params[pi].name);
+                                            if (pv == nullptr) continue;
+                                            switch (ctrl->params[pi].type) {
+                                                case ANIM_PARAM_FLOAT:
+                                                    if (cJSON_IsNumber(pv))
+                                                        sa.animator.params[pi].f =
+                                                            (float)pv->valuedouble;
+                                                    break;
+                                                case ANIM_PARAM_INT:
+                                                    if (cJSON_IsNumber(pv))
+                                                        sa.animator.params[pi].i =
+                                                            (int32_t)pv->valuedouble;
+                                                    break;
+                                                case ANIM_PARAM_BOOL:
+                                                    if (cJSON_IsBool(pv))
+                                                        sa.animator.params[pi].b =
+                                                            cJSON_IsTrue(pv);
+                                                    break;
+                                                case ANIM_PARAM_TRIGGER:
+                                                    break;
+                                            }
+                                        }
+                                    }
+
+                                    // Start playing the default state's clip.
+                                    if (ctrl->state_count > 0) {
+                                        const AnimState *ds =
+                                            &ctrl->states[
+                                                ctrl->default_state];
+                                        animator_play(&sa.animator,
+                                                      ds->clip_name);
+                                    }
+                                }
+                            }
+
+                            // Optionally start a specific clip (overrides
+                            // controller default).
                             cJSON *clip_item = cJSON_GetObjectItemCaseSensitive(
                                 anim_json, "clip");
                             if (cJSON_IsString(clip_item)) {
@@ -809,12 +873,49 @@ bool scene_save(Engine *engine, const char *filepath) {
                 cJSON *anim_obj = cJSON_AddObjectToObject(comps, "animator");
                 cJSON_AddStringToObject(anim_obj, "animation",
                                        sa->animator.anim_path);
+
+                // Controller path (if attached).
+                if (sa->animator.controller_path[0] != '\0') {
+                    cJSON_AddStringToObject(anim_obj, "controller",
+                                           sa->animator.controller_path);
+                }
+
                 if (sa->animator.anim_data != nullptr &&
                     sa->animator.current_clip < sa->animator.anim_data->clip_count) {
                     cJSON_AddStringToObject(anim_obj, "clip",
                         sa->animator.anim_data->clips[sa->animator.current_clip].name);
                 }
                 cJSON_AddBoolToObject(anim_obj, "playing", sa->animator.playing);
+
+                // Save runtime parameters (only non-default values).
+                if (sa->animator.controller != nullptr &&
+                    sa->animator.controller->param_count > 0) {
+                    cJSON *params_obj = cJSON_AddObjectToObject(
+                        anim_obj, "params");
+                    const AnimController *ctrl = sa->animator.controller;
+                    for (uint32_t pi = 0; pi < ctrl->param_count; ++pi) {
+                        const AnimParam *p = &ctrl->params[pi];
+                        switch (p->type) {
+                            case ANIM_PARAM_FLOAT:
+                                cJSON_AddNumberToObject(
+                                    params_obj, p->name,
+                                    (double)sa->animator.params[pi].f);
+                                break;
+                            case ANIM_PARAM_INT:
+                                cJSON_AddNumberToObject(
+                                    params_obj, p->name,
+                                    (double)sa->animator.params[pi].i);
+                                break;
+                            case ANIM_PARAM_BOOL:
+                                cJSON_AddBoolToObject(
+                                    params_obj, p->name,
+                                    sa->animator.params[pi].b);
+                                break;
+                            case ANIM_PARAM_TRIGGER:
+                                break; // triggers are transient
+                        }
+                    }
+                }
             }
         }
 

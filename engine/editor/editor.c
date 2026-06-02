@@ -245,9 +245,10 @@ void editor_begin_frame(Editor *editor) {
         CameraContext *cam_ctx = engine_get_cam_ctx(editor->engine);
         LuaHost       *lua     = engine_get_lua_host(editor->engine);
         AssetManager  *am      = engine_get_asset_manager(editor->engine);
+        AnimCache     *acache  = engine_get_anim_cache(editor->engine);
 
         panel_inspector_render(&editor->show_inspector,
-                                world, hctx, cam_ctx, lua, am,
+                                world, hctx, cam_ctx, lua, am, acache,
                                 editor->selected_entity,
                                 editor->has_selection);
     }

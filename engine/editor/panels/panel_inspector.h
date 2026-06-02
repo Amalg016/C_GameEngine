@@ -25,6 +25,7 @@ typedef struct HierarchyContext HierarchyContext;
 typedef struct CameraContext    CameraContext;
 typedef struct LuaHost          LuaHost;
 typedef struct AssetManager     AssetManager;
+typedef struct AnimCache        AnimCache;
 
 /// Render the inspector panel for the currently selected entity.
 ///
@@ -35,6 +36,7 @@ typedef struct AssetManager     AssetManager;
 /// `lua_host`        — Lua scripting host (for Sprite/Velocity/Script IDs
 ///                     and Lua VM introspection). May be nullptr.
 /// `am`              — asset manager (for texture path lookups). May be nullptr.
+/// `acache`          — animation cache (for loading animations/controllers). May be nullptr.
 /// `selected_entity` — entity index to inspect.
 /// `has_selection`    — true if an entity is currently selected.
 void panel_inspector_render(bool *p_open,
@@ -43,6 +45,7 @@ void panel_inspector_render(bool *p_open,
                             const CameraContext *cam_ctx,
                             LuaHost *lua_host,
                             AssetManager *am,
+                            AnimCache *acache,
                             uint32_t selected_entity,
                             bool has_selection);
 

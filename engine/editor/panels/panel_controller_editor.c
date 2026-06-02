@@ -100,10 +100,23 @@ static void draw_toolbar(void) {
         const ImGuiPayload *payload = igAcceptDragDropPayload("ASSET_PATH", 0);
         if (payload != nullptr) {
             const char *dropped = (const char *)payload->Data;
-            strncpy(s_anim_path, dropped, sizeof(s_anim_path) - 1);
-            s_anim_path[sizeof(s_anim_path) - 1] = '\0';
-            load_source_animation();
-            try_load_controller();
+            if (dropped != nullptr) {
+                if (strstr(dropped, ".controller.meta") != nullptr) {
+                    size_t len = strlen(dropped);
+                    size_t suffix_len = strlen(".controller.meta");
+                    size_t base_len = len - suffix_len;
+                    memcpy(s_anim_path, dropped, base_len);
+                    s_anim_path[base_len] = '\0';
+                    strcat(s_anim_path, ".anim.meta");
+                } else if (strstr(dropped, ".png") != nullptr) {
+                    anim_build_meta_path(dropped, s_anim_path, sizeof(s_anim_path));
+                } else {
+                    strncpy(s_anim_path, dropped, sizeof(s_anim_path) - 1);
+                    s_anim_path[sizeof(s_anim_path) - 1] = '\0';
+                }
+                load_source_animation();
+                try_load_controller();
+            }
         }
         igEndDragDropTarget();
     }

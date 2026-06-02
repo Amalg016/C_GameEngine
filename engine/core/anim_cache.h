@@ -22,6 +22,7 @@ AnimData *anim_cache_load(AnimCache *cache, const char *anim_path);
 /// Returns a borrowed pointer — the cache owns the AnimController.
 /// Returns nullptr on failure.
 AnimController *anim_cache_load_controller(AnimCache *cache,
-                                           const char *ctrl_path);
+                                           const char *ctrl_path,
+                                           AssetManager *am);
 
 #endif // ENGINE_CORE_ANIM_CACHE_H

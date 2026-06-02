@@ -1,4 +1,5 @@
 #include "anim_cache.h"
+#include "asset_manager.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,7 +89,8 @@ AnimData *anim_cache_load(AnimCache *cache, const char *anim_path) {
 }
 
 AnimController *anim_cache_load_controller(AnimCache *cache,
-                                           const char *ctrl_path) {
+                                           const char *ctrl_path,
+                                           AssetManager *am) {
     if (cache == nullptr || ctrl_path == nullptr) return nullptr;
 
     // Search for an existing entry.
@@ -123,6 +125,15 @@ AnimController *anim_cache_load_controller(AnimCache *cache,
         fprintf(stderr, "[anim_cache] failed to load controller: %s\n",
                 ctrl_path);
         return nullptr;
+    }
+
+    // Resolve anim data.
+    if (entry->ctrl.anim_path[0] != '\0') {
+        entry->ctrl.anim_data = anim_cache_load(cache, entry->ctrl.anim_path);
+        if (entry->ctrl.anim_data != nullptr && am != nullptr) {
+            entry->ctrl.texture = asset_manager_load_texture(am, entry->ctrl.anim_data->texture_path);
+            asset_manager_get_texture_size(am, entry->ctrl.texture, &entry->ctrl.tex_width, &entry->ctrl.tex_height);
+        }
     }
 
     strncpy(entry->path, ctrl_path, AnimPathMaxLen - 1);

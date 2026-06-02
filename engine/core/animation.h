@@ -46,24 +46,17 @@ typedef struct AnimData {
 constexpr uint32_t AnimCtrlMaxParamsInline = 16;
 
 typedef struct Animator {
-    // --- Animation data (always present) ---
-    char        anim_path[AnimPathMaxLen];
-    AssetHandle texture;
-    uint32_t    tex_width;
-    uint32_t    tex_height;
-    AnimData   *anim_data;       // borrowed pointer (owned by AnimCache)
-
-    // --- Playback state ---
-    uint32_t    current_clip;
-    uint32_t    current_frame;
-    float       elapsed;
-    bool        playing;
-    bool        finished;
-
-    // --- Controller (optional — nullptr for direct clip playback) ---
+    // --- Controller (strictly required) ---
     char             controller_path[AnimPathMaxLen];
     AnimController  *controller;         // borrowed (owned by AnimCache)
+
+    // --- Playback state ---
     uint32_t         current_state;      // index into controller->states[]
+    uint32_t         current_clip;
+    uint32_t         current_frame;
+    float            elapsed;
+    bool             playing;
+    bool             finished;
     AnimParamValue   params[AnimCtrlMaxParamsInline]; // runtime param values
 } Animator;
 

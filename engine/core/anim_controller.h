@@ -86,6 +86,13 @@ typedef struct AnimState {
 /// The full controller asset — loaded from a .controller.meta JSON file.
 typedef struct AnimController {
     char         anim_path[AnimPathMaxLen];    // path to the .anim.meta
+    
+    // --- Resolved at Cache Load Time (borrowed pointers) ---
+    AnimData    *anim_data;                    // owned by cache
+    AssetHandle  texture;                      // texture handle
+    uint32_t     tex_width;
+    uint32_t     tex_height;
+
     AnimParam    params[AnimCtrlMaxParams];
     uint32_t     param_count;
     AnimState    states[AnimCtrlMaxStates];

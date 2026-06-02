@@ -247,11 +247,11 @@ void animator_init(Animator *anim) {
 }
 
 bool animator_play(Animator *anim, const char *clip_name) {
-    if (anim == nullptr || anim->anim_data == nullptr || clip_name == nullptr) {
+    if (anim == nullptr || anim->controller == nullptr || anim->controller->anim_data == nullptr || clip_name == nullptr) {
         return false;
     }
 
-    int32_t idx = anim_data_find_clip(anim->anim_data, clip_name);
+    int32_t idx = anim_data_find_clip(anim->controller->anim_data, clip_name);
     if (idx < 0) return false;
 
     anim->current_clip  = (uint32_t)idx;
@@ -351,39 +351,33 @@ static int32_t eval_transitions(Animator *anim) {
 }
 
 void animator_update(Animator *anim, float dt, Sprite *out_sprite) {
-    if (anim == nullptr || anim->anim_data == nullptr || !anim->playing) return;
+    if (anim == nullptr || anim->controller == nullptr || anim->controller->anim_data == nullptr || !anim->playing) return;
 
     // --- Controller: evaluate transitions before advancing ----------------
-    if (anim->controller != nullptr) {
-        int32_t next = eval_transitions(anim);
-        if (next >= 0 && (uint32_t)next != anim->current_state) {
-            anim->current_state = (uint32_t)next;
+    int32_t next = eval_transitions(anim);
+    if (next >= 0 && (uint32_t)next != anim->current_state) {
+        anim->current_state = (uint32_t)next;
 
-            // Switch to the clip referenced by the new state.
-            const AnimState *ns =
-                &anim->controller->states[anim->current_state];
-            int32_t clip_idx =
-                anim_data_find_clip(anim->anim_data, ns->clip_name);
-            if (clip_idx >= 0) {
-                anim->current_clip  = (uint32_t)clip_idx;
-                anim->current_frame = 0;
-                anim->elapsed       = 0.0f;
-                anim->finished      = false;
-                anim->playing       = true;
-            }
+        // Switch to the clip referenced by the new state.
+        const AnimState *ns =
+            &anim->controller->states[anim->current_state];
+        int32_t clip_idx =
+            anim_data_find_clip(anim->controller->anim_data, ns->clip_name);
+        if (clip_idx >= 0) {
+            anim->current_clip  = (uint32_t)clip_idx;
+            anim->current_frame = 0;
+            anim->elapsed       = 0.0f;
+            anim->finished      = false;
+            anim->playing       = true;
         }
     }
 
     // --- Advance playback ------------------------------------------------
-    const AnimClip *clip = &anim->anim_data->clips[anim->current_clip];
+    const AnimClip *clip = &anim->controller->anim_data->clips[anim->current_clip];
     if (clip->frame_count == 0 || clip->fps <= 0.0f) return;
 
     // Apply speed multiplier from controller state (if present).
-    float speed = 1.0f;
-    if (anim->controller != nullptr &&
-        anim->current_state < anim->controller->state_count) {
-        speed = anim->controller->states[anim->current_state].speed;
-    }
+    float speed = anim->controller->states[anim->current_state].speed;
     if (speed <= 0.0f) speed = 1.0f;
 
     float frame_duration = 1.0f / (clip->fps * speed);
@@ -412,9 +406,9 @@ void animator_update(Animator *anim, float dt, Sprite *out_sprite) {
     const AnimFrame *frame = &clip->frames[anim->current_frame];
 
     if (out_sprite != nullptr) {
-        *out_sprite = sprite_from_sheet(anim->texture,
-                                        anim->tex_width,
-                                        anim->tex_height,
+        *out_sprite = sprite_from_sheet(anim->controller->texture,
+                                        anim->controller->tex_width,
+                                        anim->controller->tex_height,
                                         frame->rect);
     }
 }

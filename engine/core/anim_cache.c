@@ -12,9 +12,18 @@ typedef struct AnimCacheEntry {
     bool     used;
 } AnimCacheEntry;
 
+typedef struct CtrlCacheEntry {
+    char           path[AnimPathMaxLen];
+    AnimController ctrl;
+    bool           used;
+} CtrlCacheEntry;
+
 struct AnimCache {
     AnimCacheEntry entries[AnimCacheMaxEntries];
     uint32_t       count;
+
+    CtrlCacheEntry ctrl_entries[AnimCacheMaxEntries];
+    uint32_t       ctrl_count;
 };
 
 AnimCache *anim_cache_create(void) {
@@ -77,3 +86,53 @@ AnimData *anim_cache_load(AnimCache *cache, const char *anim_path) {
 
     return &entry->data;
 }
+
+AnimController *anim_cache_load_controller(AnimCache *cache,
+                                           const char *ctrl_path) {
+    if (cache == nullptr || ctrl_path == nullptr) return nullptr;
+
+    // Search for an existing entry.
+    for (uint32_t i = 0; i < AnimCacheMaxEntries; ++i) {
+        if (cache->ctrl_entries[i].used &&
+            strcmp(cache->ctrl_entries[i].path, ctrl_path) == 0) {
+            return &cache->ctrl_entries[i].ctrl;
+        }
+    }
+
+    // Find a free slot.
+    if (cache->ctrl_count >= AnimCacheMaxEntries) {
+        fprintf(stderr, "[anim_cache] controller cache full (%u entries)\n",
+                AnimCacheMaxEntries);
+        return nullptr;
+    }
+
+    CtrlCacheEntry *entry = nullptr;
+    for (uint32_t i = 0; i < AnimCacheMaxEntries; ++i) {
+        if (!cache->ctrl_entries[i].used) {
+            entry = &cache->ctrl_entries[i];
+            break;
+        }
+    }
+
+    if (entry == nullptr) return nullptr;
+
+    // Load from disk.
+    anim_controller_init(&entry->ctrl);
+
+    if (!anim_controller_load(ctrl_path, &entry->ctrl)) {
+        fprintf(stderr, "[anim_cache] failed to load controller: %s\n",
+                ctrl_path);
+        return nullptr;
+    }
+
+    strncpy(entry->path, ctrl_path, AnimPathMaxLen - 1);
+    entry->path[AnimPathMaxLen - 1] = '\0';
+    entry->used = true;
+    cache->ctrl_count++;
+
+    printf("[anim_cache] cached controller: %s (%u state(s))\n",
+           ctrl_path, entry->ctrl.state_count);
+
+    return &entry->ctrl;
+}
+

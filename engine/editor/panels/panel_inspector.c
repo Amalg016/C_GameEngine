@@ -25,12 +25,15 @@
 
 extern bool        lua_host_sprite_registered(LuaHost *host);
 extern ComponentId lua_host_get_sprite_id(LuaHost *host);
+extern void        lua_host_set_sprite_id(LuaHost *host, ComponentId id);
 extern bool        lua_host_velocity_registered(LuaHost *host);
 extern ComponentId lua_host_get_velocity_id(LuaHost *host);
+extern void        lua_host_set_velocity_id(LuaHost *host, ComponentId id);
 extern ComponentId lua_host_get_script_id(LuaHost *host);
 extern bool        lua_host_script_registered(LuaHost *host);
 extern bool        lua_host_animator_registered(LuaHost *host);
 extern ComponentId lua_host_get_animator_id(LuaHost *host);
+extern void        lua_host_set_animator_id(LuaHost *host, ComponentId id);
 
 // ---------------------------------------------------------------------------
 // Component structs — must mirror the layouts in lua_bindings.c / scene.c.
@@ -195,8 +198,17 @@ void panel_inspector_render(bool *p_open,
         world, ent, hctx->c_local_transform);
 
     if (lt != nullptr) {
-        if (igCollapsingHeader_BoolPtr("Local Transform", nullptr,
-                                       ImGuiTreeNodeFlags_DefaultOpen)) {
+        bool header_open = igCollapsingHeader_BoolPtr("Local Transform", nullptr,
+                                                      ImGuiTreeNodeFlags_DefaultOpen);
+        if (igBeginPopupContextItem("TransformHeaderContext", ImGuiPopupFlags_MouseButtonRight)) {
+            if (igMenuItem_Bool("Remove Component", nullptr, false, true)) {
+                world_remove_component(world, ent, hctx->c_local_transform);
+                world_remove_component(world, ent, hctx->c_world_transform);
+                world_remove_component(world, ent, hctx->c_prev_position);
+            }
+            igEndPopup();
+        }
+        if (header_open) {
             float pos[2] = { lt->x, lt->y };
             if (igDragFloat2("Position", pos, 0.05f, -100.0f, 100.0f, "%.2f", 0)) {
                 lt->x = pos[0];
@@ -231,8 +243,15 @@ void panel_inspector_render(bool *p_open,
             world, ent, cam_ctx->c_camera);
 
         if (cam != nullptr) {
-            if (igCollapsingHeader_BoolPtr("Camera", nullptr,
-                                           ImGuiTreeNodeFlags_DefaultOpen)) {
+            bool header_open = igCollapsingHeader_BoolPtr("Camera", nullptr,
+                                                          ImGuiTreeNodeFlags_DefaultOpen);
+            if (igBeginPopupContextItem("CameraHeaderContext", ImGuiPopupFlags_MouseButtonRight)) {
+                if (igMenuItem_Bool("Remove Component", nullptr, false, true)) {
+                    world_remove_component(world, ent, cam_ctx->c_camera);
+                }
+                igEndPopup();
+            }
+            if (header_open) {
                 // Projection type selector.
                 const char *proj_items[] = { "Orthographic", "Perspective" };
                 int proj_current = (int)cam->projection;
@@ -271,6 +290,16 @@ void panel_inspector_render(bool *p_open,
         if (spr != nullptr) {
             bool header_open = igCollapsingHeader_BoolPtr(
                 "Sprite", nullptr, ImGuiTreeNodeFlags_DefaultOpen);
+
+            if (igBeginPopupContextItem("SpriteHeaderContext", ImGuiPopupFlags_MouseButtonRight)) {
+                if (igMenuItem_Bool("Remove Component", nullptr, false, true)) {
+                    if (spr->sprite.texture != ASSET_HANDLE_INVALID && am != nullptr) {
+                        asset_manager_release(am, spr->sprite.texture);
+                    }
+                    world_remove_component(world, ent, c_sprite);
+                }
+                igEndPopup();
+            }
 
             // ---- Drop target on the header (works even when collapsed) ----
             if (igBeginDragDropTarget()) {
@@ -403,8 +432,15 @@ void panel_inspector_render(bool *p_open,
             world, ent, c_vel);
 
         if (vel != nullptr) {
-            if (igCollapsingHeader_BoolPtr("Velocity", nullptr,
-                                           ImGuiTreeNodeFlags_DefaultOpen)) {
+            bool header_open = igCollapsingHeader_BoolPtr("Velocity", nullptr,
+                                                          ImGuiTreeNodeFlags_DefaultOpen);
+            if (igBeginPopupContextItem("VelocityHeaderContext", ImGuiPopupFlags_MouseButtonRight)) {
+                if (igMenuItem_Bool("Remove Component", nullptr, false, true)) {
+                    world_remove_component(world, ent, c_vel);
+                }
+                igEndPopup();
+            }
+            if (header_open) {
                 float v[2] = { vel->dx, vel->dy };
                 if (igDragFloat2("Velocity", v, 0.1f, -100.0f, 100.0f, "%.2f", 0)) {
                     vel->dx = v[0];
@@ -428,6 +464,7 @@ void panel_inspector_render(bool *p_open,
 
                 // Extract basename from the script path for a cleaner header.
                 const char *basename = slot->path;
+                if (basename[0] == '\0') basename = "(empty)";
                 const char *slash = strrchr(slot->path, '/');
                 if (slash != nullptr) basename = slash + 1;
 
@@ -436,17 +473,62 @@ void panel_inspector_render(bool *p_open,
                 snprintf(header_label, sizeof(header_label),
                          "Script: %s###script_%u", basename, (unsigned)s);
 
-                if (igCollapsingHeader_BoolPtr(header_label, nullptr,
-                                               ImGuiTreeNodeFlags_DefaultOpen)) {
-                    igTextDisabled("Path: %s", slot->path);
+                bool header_open = igCollapsingHeader_BoolPtr(header_label, nullptr,
+                                                              ImGuiTreeNodeFlags_DefaultOpen);
+                if (igBeginPopupContextItem(nullptr, ImGuiPopupFlags_MouseButtonRight)) {
+                    if (igMenuItem_Bool("Remove Script", nullptr, false, true)) {
+                        if (slot->path[0] != '\0') {
+                            lua_host_detach_script(lua_host, ent, slot->path);
+                        } else {
+                            // Empty slot: compact array directly.
+                            for (uint8_t j = s; j < sc->count - 1; ++j) {
+                                sc->slots[j] = sc->slots[j + 1];
+                            }
+                            sc->count--;
+                        }
+                    }
+                    igEndPopup();
+                }
 
-                    igSeparator();
+                if (header_open) {
+                    if (slot->path[0] == '\0') {
+                        igText("Drop a .lua script here:");
+                        
+                        // Styled drop target zone.
+                        igPushStyleColor_Vec4(ImGuiCol_Button,
+                            (ImVec4){ 0.15f, 0.15f, 0.20f, 1.0f });
+                        igPushStyleColor_Vec4(ImGuiCol_ButtonHovered,
+                            (ImVec4){ 0.20f, 0.25f, 0.35f, 1.0f });
+                        igButton("(drop .lua script file here)##script_drop", (ImVec2){ -1.0f, 40.0f });
+                        igPopStyleColor(2);
 
-                    // Enumerate per-instance variables from the Lua table.
-                    if (L != nullptr && slot->instance_ref != LUA_NOREF) {
-                        render_lua_instance_vars(L, slot->instance_ref);
+                        if (igBeginDragDropTarget()) {
+                            const ImGuiPayload *ap =
+                                igAcceptDragDropPayload("ASSET_PATH", 0);
+                            if (ap != nullptr) {
+                                const char *path = (const char *)ap->Data;
+                                if (path != nullptr && strstr(path, ".lua") != nullptr) {
+                                    // Remove the empty slot first since attach_script will append a new one.
+                                    for (uint8_t j = s; j < sc->count - 1; ++j) {
+                                        sc->slots[j] = sc->slots[j + 1];
+                                    }
+                                    sc->count--;
+                                    lua_host_attach_script(lua_host, ent, path);
+                                }
+                            }
+                            igEndDragDropTarget();
+                        }
                     } else {
-                        igTextDisabled("(no instance data)");
+                        igTextDisabled("Path: %s", slot->path);
+
+                        igSeparator();
+
+                        // Enumerate per-instance variables from the Lua table.
+                        if (L != nullptr && slot->instance_ref != LUA_NOREF) {
+                            render_lua_instance_vars(L, slot->instance_ref);
+                        } else {
+                            igTextDisabled("(no instance data)");
+                        }
                     }
                 }
             }
@@ -460,8 +542,15 @@ void panel_inspector_render(bool *p_open,
             world, ent, c_anim);
 
         if (ia != nullptr) {
-            if (igCollapsingHeader_BoolPtr("Animator", nullptr,
-                                           ImGuiTreeNodeFlags_DefaultOpen)) {
+            bool header_open = igCollapsingHeader_BoolPtr("Animator", nullptr,
+                                                          ImGuiTreeNodeFlags_DefaultOpen);
+            if (igBeginPopupContextItem("AnimatorHeaderContext", ImGuiPopupFlags_MouseButtonRight)) {
+                if (igMenuItem_Bool("Remove Component", nullptr, false, true)) {
+                    world_remove_component(world, ent, c_anim);
+                }
+                igEndPopup();
+            }
+            if (header_open) {
                 // Animation file path.
                 igText("Animation:");
                 igSameLine(0.0f, 4.0f);
@@ -624,6 +713,110 @@ void panel_inspector_render(bool *p_open,
             igDragFloat2("Prev Pos", ppos, 0.0f, 0.0f, 0.0f, "%.2f", 0);
             igEndDisabled();
         }
+    }
+
+    // ---- Right-Click Context Menu to Add Components -----------------------
+    if (igBeginPopupContextWindow("InspectorContextMenu", ImGuiPopupFlags_MouseButtonRight)) {
+        igTextDisabled("Add Component");
+        igSeparator();
+
+        bool has_transform = world_has_component(world, ent, hctx->c_local_transform);
+        bool has_camera = cam_ctx != nullptr && world_has_component(world, ent, cam_ctx->c_camera);
+        
+        bool has_sprite = false;
+        ComponentId c_sprite = (lua_host != nullptr && lua_host_sprite_registered(lua_host))
+            ? lua_host_get_sprite_id(lua_host) : UINT8_MAX;
+        if (c_sprite != UINT8_MAX) {
+            has_sprite = world_has_component(world, ent, c_sprite);
+        }
+
+        bool has_velocity = false;
+        ComponentId c_velocity = (lua_host != nullptr && lua_host_velocity_registered(lua_host))
+            ? lua_host_get_velocity_id(lua_host) : UINT8_MAX;
+        if (c_velocity != UINT8_MAX) {
+            has_velocity = world_has_component(world, ent, c_velocity);
+        }
+
+        bool has_animator = false;
+        ComponentId c_animator = (lua_host != nullptr && lua_host_animator_registered(lua_host))
+            ? lua_host_get_animator_id(lua_host) : UINT8_MAX;
+        if (c_animator != UINT8_MAX) {
+            has_animator = world_has_component(world, ent, c_animator);
+        }
+
+        ComponentId c_script = (lua_host != nullptr && lua_host_script_registered(lua_host))
+            ? lua_host_get_script_id(lua_host) : UINT8_MAX;
+
+        if (igMenuItem_Bool("Transform", nullptr, false, !has_transform)) {
+            LocalTransform lt_val = { .x = 0.0f, .y = 0.0f, .sx = 1.0f, .sy = 1.0f };
+            world_add_component(world, ent, hctx->c_local_transform, &lt_val);
+
+            WorldTransform wt_val = { .x = 0.0f, .y = 0.0f, .sx = 1.0f, .sy = 1.0f };
+            world_add_component(world, ent, hctx->c_world_transform, &wt_val);
+
+            PreviousPosition pp_val = { .x = 0.0f, .y = 0.0f };
+            world_add_component(world, ent, hctx->c_prev_position, &pp_val);
+        }
+
+        if (cam_ctx != nullptr) {
+            if (igMenuItem_Bool("Camera", nullptr, false, !has_camera)) {
+                Camera cam_val = camera_default_ortho(5.0f);
+                world_add_component(world, ent, cam_ctx->c_camera, &cam_val);
+            }
+        }
+
+        if (lua_host != nullptr) {
+            if (igMenuItem_Bool("Sprite", nullptr, false, !has_sprite)) {
+                if (c_sprite == UINT8_MAX) {
+                    c_sprite = world_register_component(world, sizeof(InspectorSprite));
+                    lua_host_set_sprite_id(lua_host, c_sprite);
+                }
+                InspectorSprite spr_val = {};
+                spr_val.sprite.texture = ASSET_HANDLE_INVALID;
+                world_add_component(world, ent, c_sprite, &spr_val);
+            }
+
+            if (igMenuItem_Bool("Velocity", nullptr, false, !has_velocity)) {
+                if (c_velocity == UINT8_MAX) {
+                    c_velocity = world_register_component(world, sizeof(InspectorVelocity));
+                    lua_host_set_velocity_id(lua_host, c_velocity);
+                }
+                InspectorVelocity vel_val = { .dx = 0.0f, .dy = 0.0f };
+                world_add_component(world, ent, c_velocity, &vel_val);
+            }
+
+            if (igMenuItem_Bool("Animator", nullptr, false, !has_animator)) {
+                if (c_animator == UINT8_MAX) {
+                    c_animator = world_register_component(world, sizeof(InspectorAnimator));
+                    lua_host_set_animator_id(lua_host, c_animator);
+                }
+                InspectorAnimator anim_val = {};
+                animator_init(&anim_val.animator);
+                world_add_component(world, ent, c_animator, &anim_val);
+            }
+
+            if (igMenuItem_Bool("Script Slot", nullptr, false, true)) {
+                if (c_script == UINT8_MAX) {
+                    c_script = lua_host_get_script_id(lua_host);
+                }
+                ScriptComponent *sc = (ScriptComponent *)world_get_component(world, ent, c_script);
+                if (sc == nullptr) {
+                    ScriptComponent sc_val = {};
+                    sc_val.count = 0;
+                    world_add_component(world, ent, c_script, &sc_val);
+                    sc = (ScriptComponent *)world_get_component(world, ent, c_script);
+                }
+                if (sc != nullptr && sc->count < MAX_SCRIPTS_PER_ENTITY) {
+                    ScriptSlot *slot = &sc->slots[sc->count];
+                    *slot = (ScriptSlot){};
+                    slot->path[0] = '\0';
+                    slot->instance_ref = LUA_NOREF;
+                    sc->count++;
+                }
+            }
+        }
+
+        igEndPopup();
     }
 
     igEnd();

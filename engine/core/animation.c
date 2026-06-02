@@ -1,4 +1,5 @@
 #include "animation.h"
+#include "anim_controller.h"
 
 #include <cJSON.h>
 
@@ -267,13 +268,125 @@ void animator_stop(Animator *anim) {
     anim->finished = false;
 }
 
+// ---------------------------------------------------------------------------
+// Controller transition evaluation
+// ---------------------------------------------------------------------------
+
+/// Evaluate a single condition against current runtime parameters.
+static bool eval_condition(const AnimCondition *cond,
+                           const AnimParamValue *params,
+                           const AnimController *ctrl) {
+    if (cond->param_index >= ctrl->param_count) return false;
+
+    AnimParamType pt = ctrl->params[cond->param_index].type;
+    const AnimParamValue *val = &params[cond->param_index];
+
+    switch (pt) {
+        case ANIM_PARAM_FLOAT:
+            switch (cond->op) {
+                case ANIM_OP_GREATER: return val->f >  cond->threshold.f;
+                case ANIM_OP_LESS:    return val->f <  cond->threshold.f;
+                case ANIM_OP_EQUAL:   return val->f == cond->threshold.f;
+                case ANIM_OP_NOT_EQ:  return val->f != cond->threshold.f;
+            }
+            break;
+        case ANIM_PARAM_INT:
+            switch (cond->op) {
+                case ANIM_OP_GREATER: return val->i >  cond->threshold.i;
+                case ANIM_OP_LESS:    return val->i <  cond->threshold.i;
+                case ANIM_OP_EQUAL:   return val->i == cond->threshold.i;
+                case ANIM_OP_NOT_EQ:  return val->i != cond->threshold.i;
+            }
+            break;
+        case ANIM_PARAM_BOOL:
+        case ANIM_PARAM_TRIGGER:
+            switch (cond->op) {
+                case ANIM_OP_EQUAL:   return val->b == cond->threshold.b;
+                case ANIM_OP_NOT_EQ:  return val->b != cond->threshold.b;
+                default:              return val->b == cond->threshold.b;
+            }
+            break;
+    }
+    return false;
+}
+
+/// Evaluate all outgoing transitions from the current state.
+/// Returns the target state index if a transition fires, or -1 if none.
+/// Consumes trigger parameters that contributed to a firing transition.
+static int32_t eval_transitions(Animator *anim) {
+    const AnimController *ctrl = anim->controller;
+    if (ctrl == nullptr || anim->current_state >= ctrl->state_count) return -1;
+
+    const AnimState *state = &ctrl->states[anim->current_state];
+
+    for (uint32_t i = 0; i < state->transition_count; ++i) {
+        const AnimTransition *tr = &state->transitions[i];
+
+        // Exit-time transitions only fire when the current clip has finished.
+        if (tr->has_exit_time && !anim->finished) continue;
+
+        // All conditions must be true (AND logic).
+        bool all_met = true;
+        for (uint32_t c = 0; c < tr->condition_count; ++c) {
+            if (!eval_condition(&tr->conditions[c], anim->params, ctrl)) {
+                all_met = false;
+                break;
+            }
+        }
+
+        if (all_met && tr->target_state < ctrl->state_count) {
+            // Consume any trigger parameters used in this transition.
+            for (uint32_t c = 0; c < tr->condition_count; ++c) {
+                uint32_t pi = tr->conditions[c].param_index;
+                if (pi < ctrl->param_count &&
+                    ctrl->params[pi].type == ANIM_PARAM_TRIGGER) {
+                    anim->params[pi].b = false;
+                }
+            }
+            return (int32_t)tr->target_state;
+        }
+    }
+
+    return -1;
+}
+
 void animator_update(Animator *anim, float dt, Sprite *out_sprite) {
     if (anim == nullptr || anim->anim_data == nullptr || !anim->playing) return;
 
+    // --- Controller: evaluate transitions before advancing ----------------
+    if (anim->controller != nullptr) {
+        int32_t next = eval_transitions(anim);
+        if (next >= 0 && (uint32_t)next != anim->current_state) {
+            anim->current_state = (uint32_t)next;
+
+            // Switch to the clip referenced by the new state.
+            const AnimState *ns =
+                &anim->controller->states[anim->current_state];
+            int32_t clip_idx =
+                anim_data_find_clip(anim->anim_data, ns->clip_name);
+            if (clip_idx >= 0) {
+                anim->current_clip  = (uint32_t)clip_idx;
+                anim->current_frame = 0;
+                anim->elapsed       = 0.0f;
+                anim->finished      = false;
+                anim->playing       = true;
+            }
+        }
+    }
+
+    // --- Advance playback ------------------------------------------------
     const AnimClip *clip = &anim->anim_data->clips[anim->current_clip];
     if (clip->frame_count == 0 || clip->fps <= 0.0f) return;
 
-    float frame_duration = 1.0f / clip->fps;
+    // Apply speed multiplier from controller state (if present).
+    float speed = 1.0f;
+    if (anim->controller != nullptr &&
+        anim->current_state < anim->controller->state_count) {
+        speed = anim->controller->states[anim->current_state].speed;
+    }
+    if (speed <= 0.0f) speed = 1.0f;
+
+    float frame_duration = 1.0f / (clip->fps * speed);
 
     anim->elapsed += dt;
 
@@ -305,3 +418,89 @@ void animator_update(Animator *anim, float dt, Sprite *out_sprite) {
                                         frame->rect);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Parameter accessors
+// ---------------------------------------------------------------------------
+
+void animator_set_float(Animator *anim, const char *name, float value) {
+    if (anim == nullptr || anim->controller == nullptr) return;
+    int32_t idx = anim_controller_find_param(anim->controller, name);
+    if (idx >= 0 && anim->controller->params[idx].type == ANIM_PARAM_FLOAT) {
+        anim->params[idx].f = value;
+    }
+}
+
+void animator_set_int(Animator *anim, const char *name, int32_t value) {
+    if (anim == nullptr || anim->controller == nullptr) return;
+    int32_t idx = anim_controller_find_param(anim->controller, name);
+    if (idx >= 0 && anim->controller->params[idx].type == ANIM_PARAM_INT) {
+        anim->params[idx].i = value;
+    }
+}
+
+void animator_set_bool(Animator *anim, const char *name, bool value) {
+    if (anim == nullptr || anim->controller == nullptr) return;
+    int32_t idx = anim_controller_find_param(anim->controller, name);
+    if (idx >= 0 && anim->controller->params[idx].type == ANIM_PARAM_BOOL) {
+        anim->params[idx].b = value;
+    }
+}
+
+void animator_set_trigger(Animator *anim, const char *name) {
+    if (anim == nullptr || anim->controller == nullptr) return;
+    int32_t idx = anim_controller_find_param(anim->controller, name);
+    if (idx >= 0 && anim->controller->params[idx].type == ANIM_PARAM_TRIGGER) {
+        anim->params[idx].b = true;
+    }
+}
+
+float animator_get_float(const Animator *anim, const char *name) {
+    if (anim == nullptr || anim->controller == nullptr) return 0.0f;
+    int32_t idx = anim_controller_find_param(anim->controller, name);
+    if (idx >= 0 && anim->controller->params[idx].type == ANIM_PARAM_FLOAT) {
+        return anim->params[idx].f;
+    }
+    return 0.0f;
+}
+
+int32_t animator_get_int(const Animator *anim, const char *name) {
+    if (anim == nullptr || anim->controller == nullptr) return 0;
+    int32_t idx = anim_controller_find_param(anim->controller, name);
+    if (idx >= 0 && anim->controller->params[idx].type == ANIM_PARAM_INT) {
+        return anim->params[idx].i;
+    }
+    return 0;
+}
+
+bool animator_get_bool(const Animator *anim, const char *name) {
+    if (anim == nullptr || anim->controller == nullptr) return false;
+    int32_t idx = anim_controller_find_param(anim->controller, name);
+    if (idx >= 0 && (anim->controller->params[idx].type == ANIM_PARAM_BOOL ||
+                     anim->controller->params[idx].type == ANIM_PARAM_TRIGGER)) {
+        return anim->params[idx].b;
+    }
+    return false;
+}
+
+void animator_reset_params(Animator *anim) {
+    if (anim == nullptr || anim->controller == nullptr) return;
+    for (uint32_t i = 0; i < anim->controller->param_count; ++i) {
+        const AnimParam *p = &anim->controller->params[i];
+        switch (p->type) {
+            case ANIM_PARAM_FLOAT:
+                anim->params[i].f = p->default_value.f;
+                break;
+            case ANIM_PARAM_INT:
+                anim->params[i].i = p->default_value.i;
+                break;
+            case ANIM_PARAM_BOOL:
+                anim->params[i].b = p->default_value.b;
+                break;
+            case ANIM_PARAM_TRIGGER:
+                anim->params[i].b = false;
+                break;
+        }
+    }
+}
+

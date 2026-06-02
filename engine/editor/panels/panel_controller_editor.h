@@ -11,6 +11,9 @@ void panel_controller_editor_render(bool *p_open,
                                     AssetManager *am,
                                     Renderer *renderer);
 
+/// Open a specific controller asset for editing.
+void panel_controller_editor_open(const char *ctrl_path);
+
 /// Release any GPU resources held by the controller editor.
 void panel_controller_editor_shutdown(Renderer *renderer);
 

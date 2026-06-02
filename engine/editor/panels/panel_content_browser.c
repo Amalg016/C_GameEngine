@@ -1,6 +1,7 @@
 #ifdef EDITOR_BUILD
 
 #include "panel_content_browser.h"
+#include "panel_controller_editor.h"
 
 #include "../../core/sprite_meta.h"
 #include "../../core/animation.h"
@@ -27,6 +28,8 @@ constexpr uint32_t PathMaxLen = 512;
 
 /// Current directory path (relative to project root).
 static char s_current_dir[PathMaxLen] = "assets";
+
+static bool *s_p_show_controller_editor = nullptr;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -253,6 +256,14 @@ static bool render_entry(const char *name, const char *full_path,
                                  ctrl_data.param_count);
                         igSelectable_Bool(ctrl_label, false, 0,
                                           (ImVec2){ 0, 0 });
+                        
+                        if (igIsItemHovered(0) &&
+                            igIsMouseDoubleClicked_Nil(ImGuiMouseButton_Left)) {
+                            panel_controller_editor_open(ctrl_path);
+                            if (s_p_show_controller_editor != nullptr) {
+                                *s_p_show_controller_editor = true;
+                            }
+                        }
                         igPopID();
                     }
                 }
@@ -272,6 +283,16 @@ static bool render_entry(const char *name, const char *full_path,
             // Single click.
         }
 
+        if (is_controller_meta_file(name)) {
+            if (igIsItemHovered(0) &&
+                igIsMouseDoubleClicked_Nil(ImGuiMouseButton_Left)) {
+                panel_controller_editor_open(full_path);
+                if (s_p_show_controller_editor != nullptr) {
+                    *s_p_show_controller_editor = true;
+                }
+            }
+        }
+
         // Drag source: asset path payload.
         if (igBeginDragDropSource(0)) {
             igSetDragDropPayload("ASSET_PATH", full_path,
@@ -288,7 +309,8 @@ static bool render_entry(const char *name, const char *full_path,
 // panel_content_browser_render
 // ---------------------------------------------------------------------------
 
-void panel_content_browser_render(bool *p_open) {
+void panel_content_browser_render(bool *p_open, bool *p_show_controller_editor) {
+    s_p_show_controller_editor = p_show_controller_editor;
     if (!igBegin("Content Browser", p_open, 0)) {
         igEnd();
         return;

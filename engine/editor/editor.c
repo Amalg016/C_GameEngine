@@ -254,7 +254,7 @@ void editor_begin_frame(Editor *editor) {
     }
 
     if (editor->show_content_browser) {
-        panel_content_browser_render(&editor->show_content_browser);
+        panel_content_browser_render(&editor->show_content_browser, &editor->show_controller_editor);
     }
 
     if (editor->show_console) {

@@ -759,6 +759,23 @@ void panel_controller_editor_render(bool *p_open,
     igEnd();
 }
 
+void panel_controller_editor_open(const char *ctrl_path) {
+    if (ctrl_path == nullptr) return;
+    AnimController tmp = {};
+    anim_controller_init(&tmp);
+    if (anim_controller_load(ctrl_path, &tmp)) {
+        s_ctrl = tmp;
+        s_ctrl_loaded = true;
+        s_selected_state = (s_ctrl.state_count > 0) ? 0 : -1;
+        s_selected_trans = -1;
+        strncpy(s_anim_path, tmp.anim_path, sizeof(s_anim_path) - 1);
+        s_anim_path[sizeof(s_anim_path) - 1] = '\0';
+        load_source_animation();
+        extract_controller_name_from_path(ctrl_path);
+        console_log("[ctrl_editor] Opened controller: %s", ctrl_path);
+    }
+}
+
 void panel_controller_editor_shutdown([[maybe_unused]] Renderer *renderer) {
     s_anim_loaded  = false;
     s_ctrl_loaded  = false;

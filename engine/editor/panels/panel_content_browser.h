@@ -15,7 +15,7 @@
 
 /// Render the content browser panel.
 /// `p_open` — visibility flag.
-void panel_content_browser_render(bool *p_open);
+void panel_content_browser_render(bool *p_open, bool *p_show_controller_editor);
 
 #endif // EDITOR_BUILD
 #endif // ENGINE_EDITOR_PANEL_CONTENT_BROWSER_H

@@ -4,6 +4,7 @@
 #include "../ecs/ecs.h"
 #include "../asset_manager.h"
 #include "../sprite.h"
+#include "../animation.h"
 #include "../input.h"
 #include "../../renderer/renderer.h"
 
@@ -35,6 +36,8 @@ extern void              lua_host_set_sprite_id(LuaHost *host, ComponentId id);
 extern bool              lua_host_velocity_registered(LuaHost *host);
 extern bool              lua_host_sprite_registered(LuaHost *host);
 extern Input            *lua_host_get_input(LuaHost *host);
+extern ComponentId       lua_host_get_animator_id(LuaHost *host);
+extern bool              lua_host_animator_registered(LuaHost *host);
 
 // ---------------------------------------------------------------------------
 // Application-level Sprite component.  Mirrors the definition in scene.c.
@@ -465,6 +468,153 @@ static int l_get_scroll_delta(lua_State *L) {
 }
 
 // ---------------------------------------------------------------------------
+// Animator component Lua bindings
+// ---------------------------------------------------------------------------
+
+static int l_set_animator_float(lua_State *L) {
+    LuaHost *host = get_host(L);
+    if (!lua_host_animator_registered(host)) return 0;
+    World *world = lua_host_get_world(host);
+    Entity e = (Entity)luaL_checkinteger(L, 1);
+    const char *name = luaL_checkstring(L, 2);
+    float val = (float)luaL_checknumber(L, 3);
+
+    ComponentId c_animator = lua_host_get_animator_id(host);
+    Animator *anim = (Animator *)world_get_component(world, e, c_animator);
+    if (anim != nullptr) {
+        animator_set_float(anim, name, val);
+    }
+    return 0;
+}
+
+static int l_set_animator_int(lua_State *L) {
+    LuaHost *host = get_host(L);
+    if (!lua_host_animator_registered(host)) return 0;
+    World *world = lua_host_get_world(host);
+    Entity e = (Entity)luaL_checkinteger(L, 1);
+    const char *name = luaL_checkstring(L, 2);
+    int32_t val = (int32_t)luaL_checkinteger(L, 3);
+
+    ComponentId c_animator = lua_host_get_animator_id(host);
+    Animator *anim = (Animator *)world_get_component(world, e, c_animator);
+    if (anim != nullptr) {
+        animator_set_int(anim, name, val);
+    }
+    return 0;
+}
+
+static int l_set_animator_bool(lua_State *L) {
+    LuaHost *host = get_host(L);
+    if (!lua_host_animator_registered(host)) return 0;
+    World *world = lua_host_get_world(host);
+    Entity e = (Entity)luaL_checkinteger(L, 1);
+    const char *name = luaL_checkstring(L, 2);
+    bool val = lua_toboolean(L, 3);
+
+    ComponentId c_animator = lua_host_get_animator_id(host);
+    Animator *anim = (Animator *)world_get_component(world, e, c_animator);
+    if (anim != nullptr) {
+        animator_set_bool(anim, name, val);
+    }
+    return 0;
+}
+
+static int l_set_animator_trigger(lua_State *L) {
+    LuaHost *host = get_host(L);
+    if (!lua_host_animator_registered(host)) return 0;
+    World *world = lua_host_get_world(host);
+    Entity e = (Entity)luaL_checkinteger(L, 1);
+    const char *name = luaL_checkstring(L, 2);
+
+    ComponentId c_animator = lua_host_get_animator_id(host);
+    Animator *anim = (Animator *)world_get_component(world, e, c_animator);
+    if (anim != nullptr) {
+        animator_set_trigger(anim, name);
+    }
+    return 0;
+}
+
+static int l_get_animator_float(lua_State *L) {
+    LuaHost *host = get_host(L);
+    if (!lua_host_animator_registered(host)) {
+        lua_pushnumber(L, 0.0);
+        return 1;
+    }
+    World *world = lua_host_get_world(host);
+    Entity e = (Entity)luaL_checkinteger(L, 1);
+    const char *name = luaL_checkstring(L, 2);
+
+    ComponentId c_animator = lua_host_get_animator_id(host);
+    Animator *anim = (Animator *)world_get_component(world, e, c_animator);
+    float val = 0.0f;
+    if (anim != nullptr) {
+        val = animator_get_float(anim, name);
+    }
+    lua_pushnumber(L, (double)val);
+    return 1;
+}
+
+static int l_get_animator_int(lua_State *L) {
+    LuaHost *host = get_host(L);
+    if (!lua_host_animator_registered(host)) {
+        lua_pushinteger(L, 0);
+        return 1;
+    }
+    World *world = lua_host_get_world(host);
+    Entity e = (Entity)luaL_checkinteger(L, 1);
+    const char *name = luaL_checkstring(L, 2);
+
+    ComponentId c_animator = lua_host_get_animator_id(host);
+    Animator *anim = (Animator *)world_get_component(world, e, c_animator);
+    int32_t val = 0;
+    if (anim != nullptr) {
+        val = animator_get_int(anim, name);
+    }
+    lua_pushinteger(L, val);
+    return 1;
+}
+
+static int l_get_animator_bool(lua_State *L) {
+    LuaHost *host = get_host(L);
+    if (!lua_host_animator_registered(host)) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+    World *world = lua_host_get_world(host);
+    Entity e = (Entity)luaL_checkinteger(L, 1);
+    const char *name = luaL_checkstring(L, 2);
+
+    ComponentId c_animator = lua_host_get_animator_id(host);
+    Animator *anim = (Animator *)world_get_component(world, e, c_animator);
+    bool val = false;
+    if (anim != nullptr) {
+        val = animator_get_bool(anim, name);
+    }
+    lua_pushboolean(L, val);
+    return 1;
+}
+
+static int l_animator_play(lua_State *L) {
+    LuaHost *host = get_host(L);
+    if (!lua_host_animator_registered(host)) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+    World *world = lua_host_get_world(host);
+    Entity e = (Entity)luaL_checkinteger(L, 1);
+    const char *clip_name = luaL_checkstring(L, 2);
+
+    ComponentId c_animator = lua_host_get_animator_id(host);
+    Animator *anim = (Animator *)world_get_component(world, e, c_animator);
+    bool success = false;
+    if (anim != nullptr) {
+        success = animator_play(anim, clip_name);
+    }
+    lua_pushboolean(L, success);
+    return 1;
+}
+
+// ---------------------------------------------------------------------------
 // Registration table
 // ---------------------------------------------------------------------------
 
@@ -491,6 +641,14 @@ static const luaL_Reg engine_funcs[] = {
     { "get_mouse_pos",          l_get_mouse_pos         },
     { "get_mouse_delta",        l_get_mouse_delta       },
     { "get_scroll_delta",       l_get_scroll_delta      },
+    { "set_animator_float",     l_set_animator_float    },
+    { "set_animator_int",       l_set_animator_int      },
+    { "set_animator_bool",      l_set_animator_bool     },
+    { "set_animator_trigger",   l_set_animator_trigger  },
+    { "get_animator_float",     l_get_animator_float    },
+    { "get_animator_int",       l_get_animator_int      },
+    { "get_animator_bool",      l_get_animator_bool     },
+    { "animator_play",          l_animator_play         },
     { nullptr,                  nullptr                 },
 };
 

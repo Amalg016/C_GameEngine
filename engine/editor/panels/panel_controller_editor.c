@@ -22,6 +22,9 @@
 /// Source .anim.meta path — the controller references this.
 static char s_anim_path[AnimPathMaxLen] = {};
 
+/// Custom name for the controller asset.
+static char s_controller_name[AnimNameMaxLen] = "NewController";
+
 /// Loaded animation data for clip name reference.
 static AnimData s_anim_data = {};
 static bool     s_anim_loaded = false;
@@ -43,6 +46,48 @@ static const char *s_param_type_names[] = {
 static const char *s_op_names[] = { ">", "<", "==", "!=" };
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+static void extract_controller_name_from_path(const char *path) {
+    const char *slash = strrchr(path, '/');
+    const char *start = (slash != nullptr) ? slash + 1 : path;
+    const char *dot = strstr(start, ".controller.meta");
+    if (dot != nullptr) {
+        size_t len = (size_t)(dot - start);
+        if (len >= AnimNameMaxLen) len = AnimNameMaxLen - 1;
+        memcpy(s_controller_name, start, len);
+        s_controller_name[len] = '\0';
+    } else {
+        const char *anim_dot = strstr(start, ".anim.meta");
+        if (anim_dot != nullptr) {
+            size_t len = (size_t)(anim_dot - start);
+            if (len >= AnimNameMaxLen) len = AnimNameMaxLen - 1;
+            memcpy(s_controller_name, start, len);
+            s_controller_name[len] = '\0';
+        } else {
+            strncpy(s_controller_name, start, AnimNameMaxLen - 1);
+            s_controller_name[AnimNameMaxLen - 1] = '\0';
+        }
+    }
+}
+
+static void build_controller_save_path(char *out_path, uint32_t max_len) {
+    const char *slash = strrchr(s_anim_path, '/');
+    if (slash != nullptr) {
+        size_t dir_len = (size_t)(slash - s_anim_path) + 1;
+        if (dir_len + strlen(s_controller_name) + strlen(".controller.meta") < max_len) {
+            memcpy(out_path, s_anim_path, dir_len);
+            out_path[dir_len] = '\0';
+            strcat(out_path, s_controller_name);
+            strcat(out_path, ".controller.meta");
+            return;
+        }
+    }
+    snprintf(out_path, max_len, "assets/images/%s.controller.meta", s_controller_name);
+}
+
+// ---------------------------------------------------------------------------
 // Internal — load animation data for clip palette.
 // ---------------------------------------------------------------------------
 
@@ -56,6 +101,7 @@ static void load_source_animation(void) {
         s_anim_loaded = true;
         console_log("[ctrl_editor] Loaded animation: %s (%u clips)",
                     s_anim_path, s_anim_data.clip_count);
+        extract_controller_name_from_path(s_anim_path);
     } else {
         console_log("[ctrl_editor] Failed to load animation: %s",
                     s_anim_path);
@@ -71,7 +117,7 @@ static void try_load_controller(void) {
     if (s_anim_path[0] == '\0') return;
 
     char ctrl_path[AnimPathMaxLen];
-    anim_ctrl_build_meta_path(s_anim_path, ctrl_path, AnimPathMaxLen);
+    build_controller_save_path(ctrl_path, AnimPathMaxLen);
 
     AnimController tmp = {};
     anim_controller_init(&tmp);
@@ -80,6 +126,7 @@ static void try_load_controller(void) {
         s_ctrl_loaded = true;
         s_selected_state = (s_ctrl.state_count > 0) ? 0 : -1;
         s_selected_trans = -1;
+        extract_controller_name_from_path(ctrl_path);
         console_log("[ctrl_editor] Loaded controller: %s", ctrl_path);
     }
 }
@@ -91,31 +138,40 @@ static void try_load_controller(void) {
 static void draw_toolbar(void) {
     igText("Animation:");
     igSameLine(0.0f, 4.0f);
-    igSetNextItemWidth(280.0f);
+    igSetNextItemWidth(200.0f);
     igInputText("##ctrl_anim_path", s_anim_path, sizeof(s_anim_path),
                 0, nullptr, nullptr);
 
-    // Drop target for drag-and-drop.
+    // Drop target for drag-and-drop animation or controller files.
     if (igBeginDragDropTarget()) {
         const ImGuiPayload *payload = igAcceptDragDropPayload("ASSET_PATH", 0);
         if (payload != nullptr) {
             const char *dropped = (const char *)payload->Data;
             if (dropped != nullptr) {
                 if (strstr(dropped, ".controller.meta") != nullptr) {
-                    size_t len = strlen(dropped);
-                    size_t suffix_len = strlen(".controller.meta");
-                    size_t base_len = len - suffix_len;
-                    memcpy(s_anim_path, dropped, base_len);
-                    s_anim_path[base_len] = '\0';
-                    strcat(s_anim_path, ".anim.meta");
+                    AnimController tmp = {};
+                    anim_controller_init(&tmp);
+                    if (anim_controller_load(dropped, &tmp)) {
+                        s_ctrl = tmp;
+                        s_ctrl_loaded = true;
+                        s_selected_state = (s_ctrl.state_count > 0) ? 0 : -1;
+                        s_selected_trans = -1;
+                        strncpy(s_anim_path, tmp.anim_path, sizeof(s_anim_path) - 1);
+                        s_anim_path[sizeof(s_anim_path) - 1] = '\0';
+                        load_source_animation();
+                        extract_controller_name_from_path(dropped);
+                        console_log("[ctrl_editor] Loaded dropped controller: %s", dropped);
+                    }
                 } else if (strstr(dropped, ".png") != nullptr) {
                     anim_build_meta_path(dropped, s_anim_path, sizeof(s_anim_path));
+                    load_source_animation();
+                    try_load_controller();
                 } else {
                     strncpy(s_anim_path, dropped, sizeof(s_anim_path) - 1);
                     s_anim_path[sizeof(s_anim_path) - 1] = '\0';
+                    load_source_animation();
+                    try_load_controller();
                 }
-                load_source_animation();
-                try_load_controller();
             }
         }
         igEndDragDropTarget();
@@ -127,12 +183,19 @@ static void draw_toolbar(void) {
         try_load_controller();
     }
 
+    igSameLine(0.0f, 8.0f);
+    igText("Controller Name:");
+    igSameLine(0.0f, 4.0f);
+    igSetNextItemWidth(140.0f);
+    igInputText("##ctrl_name", s_controller_name, sizeof(s_controller_name),
+                0, nullptr, nullptr);
+
     if (!s_anim_loaded) return;
 
     igSameLine(0.0f, 12.0f);
     if (igButton("Save .controller.meta", (ImVec2){ 170, 0 })) {
         char ctrl_path[AnimPathMaxLen];
-        anim_ctrl_build_meta_path(s_anim_path, ctrl_path, AnimPathMaxLen);
+        build_controller_save_path(ctrl_path, AnimPathMaxLen);
         if (anim_controller_save(&s_ctrl, ctrl_path)) {
             s_ctrl_loaded = true;
             console_log("[ctrl_editor] Saved: %s", ctrl_path);

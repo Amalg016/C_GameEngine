@@ -546,6 +546,39 @@ void panel_inspector_render(bool *p_open,
         if (ia != nullptr) {
             bool header_open = igCollapsingHeader_BoolPtr("Animator", nullptr,
                                                           ImGuiTreeNodeFlags_DefaultOpen);
+
+            if (igBeginDragDropTarget()) {
+                const ImGuiPayload *ap = igAcceptDragDropPayload("ASSET_PATH", 0);
+                if (ap != nullptr && acache != nullptr) {
+                    const char *path = (const char *)ap->Data;
+                    if (path != nullptr) {
+                        if (strstr(path, ".controller.meta") != nullptr) {
+                            AnimController *ctrl = anim_cache_load_controller(acache, path);
+                            if (ctrl != nullptr) {
+                                strncpy(ia->animator.controller_path, path, AnimPathMaxLen - 1);
+                                ia->animator.controller = ctrl;
+                                animator_reset_params(&ia->animator);
+                                ia->animator.current_state = ctrl->default_state;
+                                ia->animator.playing = true;
+                            }
+                        } else if (strstr(path, ".anim.meta") != nullptr) {
+                            AnimData *ad = anim_cache_load(acache, path);
+                            if (ad != nullptr) {
+                                strncpy(ia->animator.anim_path, path, AnimPathMaxLen - 1);
+                                ia->animator.anim_data = ad;
+                                ia->animator.texture = asset_manager_load_texture(am, ad->texture_path);
+                                asset_manager_get_texture_size(am, ia->animator.texture, &ia->animator.tex_width, &ia->animator.tex_height);
+                                ia->animator.current_clip = 0;
+                                ia->animator.current_frame = 0;
+                                ia->animator.elapsed = 0.0f;
+                                ia->animator.playing = true;
+                            }
+                        }
+                    }
+                }
+                igEndDragDropTarget();
+            }
+
             if (igBeginPopupContextItem("AnimatorHeaderContext", ImGuiPopupFlags_MouseButtonRight)) {
                 if (igMenuItem_Bool("Remove Component", nullptr, false, true)) {
                     world_remove_component(world, ent, c_anim);

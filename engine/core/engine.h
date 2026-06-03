@@ -6,6 +6,17 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// ---------------------------------------------------------------------------
+// Play state — controls whether game logic (callbacks) are active.
+// ---------------------------------------------------------------------------
+
+/// Editor play-mode state machine.
+typedef enum PlayState {
+    PLAY_STATE_EDITING,   ///< Default: scene editing, no game logic runs
+    PLAY_STATE_PLAYING,   ///< Game logic (fixed_update, update, render) active
+    PLAY_STATE_PAUSED,    ///< Game logic suspended, Game View remains visible
+} PlayState;
+
 // Forward declarations to prevent transitive header pollution (Rule 2)
 typedef struct AssetManager AssetManager;
 typedef struct Clock Clock;
@@ -145,6 +156,12 @@ bool engine_save_scene(Engine *engine, const char *filepath);
 /// Get the filepath of the currently loaded scene.
 /// Returns nullptr if no scene has been loaded.
 const char *engine_get_current_scene(const Engine *engine);
+
+/// Get the current play state (EDITING / PLAYING / PAUSED).
+PlayState engine_get_play_state(const Engine *engine);
+
+/// Set the play state.  Controls whether game callbacks execute.
+void engine_set_play_state(Engine *engine, PlayState state);
 
 // ---------------------------------------------------------------------------
 // Editor integration — compiled only when EDITOR_BUILD is defined.

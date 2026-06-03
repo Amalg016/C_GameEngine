@@ -62,6 +62,7 @@ struct Engine {
     bool              renderer_alive;   // true between engine_init and shutdown
     bool              hctx_inited;      // true after hierarchy_init()
     bool              cam_ctx_inited;   // true after camera_init()
+    PlayState         play_state;       // EDITING / PLAYING / PAUSED
 #ifdef EDITOR_BUILD
     Editor           *editor;         // editor layer (nullptr in runtime builds)
 #endif
@@ -242,7 +243,8 @@ void engine_run(Engine *engine) {
 
         // ----- fixed update: drain accumulator at a constant rate ----------
         while (engine->clock.accumulator >= engine->clock.fixed_dt) {
-            if (engine->callbacks.on_fixed_update) {
+            if (engine->play_state == PLAY_STATE_PLAYING &&
+                engine->callbacks.on_fixed_update) {
                 engine->callbacks.on_fixed_update(
                     engine->callbacks.user_data,
                     engine->clock.fixed_dt);
@@ -251,7 +253,8 @@ void engine_run(Engine *engine) {
         }
 
         // ----- variable update: once per frame -----------------------------
-        if (engine->callbacks.on_update) {
+        if (engine->play_state == PLAY_STATE_PLAYING &&
+            engine->callbacks.on_update) {
             engine->callbacks.on_update(
                 engine->callbacks.user_data,
                 engine->clock.delta_time);
@@ -524,3 +527,16 @@ Editor *engine_get_editor(Engine *engine) {
 }
 
 #endif // EDITOR_BUILD
+
+// ---------------------------------------------------------------------------
+// Play state
+// ---------------------------------------------------------------------------
+
+PlayState engine_get_play_state(const Engine *engine) {
+    return engine != nullptr ? engine->play_state : PLAY_STATE_EDITING;
+}
+
+void engine_set_play_state(Engine *engine, PlayState state) {
+    if (engine == nullptr) return;
+    engine->play_state = state;
+}

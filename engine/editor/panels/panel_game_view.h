@@ -13,6 +13,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "../../core/engine.h"
 
 typedef struct Renderer Renderer;
 
@@ -20,7 +21,10 @@ typedef struct Renderer Renderer;
 /// `p_open` — visibility flag.
 /// `renderer` — the active renderer.
 /// `fb_w`, `fb_h` — current framebuffer dimensions (for display).
-void panel_game_view_render(bool *p_open, Renderer *renderer, uint32_t fb_w, uint32_t fb_h);
+/// `play_state` — current engine play state (for overlay badge).
+void panel_game_view_render(bool *p_open, Renderer *renderer,
+                            uint32_t fb_w, uint32_t fb_h,
+                            PlayState play_state);
 
 bool panel_game_view_is_focused(void);
 bool panel_game_view_is_hovered(void);

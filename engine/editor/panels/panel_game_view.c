@@ -1,6 +1,7 @@
 #ifdef EDITOR_BUILD
 
 #include "panel_game_view.h"
+#include "../../core/engine.h"
 #include "../../renderer/vulkan/vulkan_renderer.h"
 
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
@@ -34,7 +35,9 @@ void panel_game_view_get_content_bounds(float *min_x, float *min_y, float *max_x
 // panel_game_view_render
 // ---------------------------------------------------------------------------
 
-void panel_game_view_render(bool *p_open, Renderer *renderer, uint32_t fb_w, uint32_t fb_h) {
+void panel_game_view_render(bool *p_open, Renderer *renderer,
+                            uint32_t fb_w, uint32_t fb_h,
+                            PlayState play_state) {
     igPushStyleVar_Vec2(ImGuiStyleVar_WindowPadding, (ImVec2){ 0, 0 });
 
     if (!igBegin("Game View", p_open, ImGuiWindowFlags_NoScrollbar |
@@ -107,6 +110,34 @@ void panel_game_view_render(bool *p_open, Renderer *renderer, uint32_t fb_w, uin
     ImDrawList_AddText_Vec2(draw_list, corner,
                             igGetColorU32_Vec4((ImVec4){0.3f, 0.6f, 0.3f, 1.0f}),
                             size_text, nullptr);
+
+    // --- Play-state overlay badge (top-right corner) -----------------------
+    if (play_state == PLAY_STATE_PLAYING || play_state == PLAY_STATE_PAUSED) {
+        const char *label  = (play_state == PLAY_STATE_PLAYING)
+                             ? "\xe2\x96\xb6 Playing" : "\xe2\x8f\xb8 Paused";
+        ImVec4 badge_color = (play_state == PLAY_STATE_PLAYING)
+                             ? (ImVec4){0.15f, 0.55f, 0.25f, 0.85f}
+                             : (ImVec4){0.65f, 0.55f, 0.1f, 0.85f};
+
+        ImVec2 label_size = igCalcTextSize(label, nullptr, false, -1.0f);
+        float pad = 6.0f;
+
+        ImVec2 badge_max = {
+            s_max_x - 8.0f,
+            s_min_y + 8.0f + label_size.y + pad * 2.0f,
+        };
+        ImVec2 badge_min = {
+            badge_max.x - label_size.x - pad * 2.0f,
+            s_min_y + 8.0f,
+        };
+
+        ImDrawList_AddRectFilled(draw_list, badge_min, badge_max,
+                                 igGetColorU32_Vec4(badge_color), 4.0f, 0);
+        ImVec2 text_pos = { badge_min.x + pad, badge_min.y + pad };
+        ImDrawList_AddText_Vec2(draw_list, text_pos,
+                                igGetColorU32_Vec4((ImVec4){1.0f, 1.0f, 1.0f, 1.0f}),
+                                label, nullptr);
+    }
 
     igEnd();
 }

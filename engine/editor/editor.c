@@ -18,6 +18,8 @@
 #include "panels/panel_content_browser.h"
 #include "panels/panel_console.h"
 #include "panels/panel_game_view.h"
+#include "panels/panel_scene_view.h"
+#include "panels/panel_toolbar.h"
 #include "panels/panel_sprite_editor.h"
 #include "panels/panel_animation_editor.h"
 #include "panels/panel_controller_editor.h"
@@ -41,6 +43,7 @@ struct Editor {
     bool show_content_browser;
     bool show_console;
     bool show_game_view;
+    bool show_scene_view;
     bool show_sprite_editor;
     bool show_animation_editor;
     bool show_controller_editor;
@@ -94,7 +97,8 @@ Editor *editor_create(Engine *engine) {
         .show_inspector        = true,
         .show_content_browser  = true,
         .show_console          = true,
-        .show_game_view        = true,
+        .show_game_view        = false,  // hidden until Play
+        .show_scene_view       = true,   // always visible by default
         .show_sprite_editor    = false,
         .show_animation_editor = false,
         .show_controller_editor = false,
@@ -198,8 +202,12 @@ static void editor_render_dockspace(Editor *editor) {
                                &editor->show_content_browser, true);
             igMenuItem_BoolPtr("Console",        nullptr,
                                &editor->show_console, true);
+            igSeparator();
+            igMenuItem_BoolPtr("Scene View",     nullptr,
+                               &editor->show_scene_view, true);
             igMenuItem_BoolPtr("Game View",      nullptr,
                                &editor->show_game_view, true);
+            igSeparator();
             igMenuItem_BoolPtr("Sprite Editor",  nullptr,
                                &editor->show_sprite_editor, true);
             igMenuItem_BoolPtr("Animation Editor", nullptr,
@@ -229,6 +237,16 @@ void editor_begin_frame(Editor *editor) {
 
     // Dockspace + menu bar.
     editor_render_dockspace(editor);
+
+    // ---- Toolbar (Play / Pause / Stop) ------------------------------------
+    PlayState prev_state = engine_get_play_state(editor->engine);
+    panel_toolbar_render(editor->engine);
+    PlayState curr_state = engine_get_play_state(editor->engine);
+
+    // Auto-open Game View when entering Play mode.
+    if (prev_state == PLAY_STATE_EDITING && curr_state != PLAY_STATE_EDITING) {
+        editor->show_game_view = true;
+    }
 
     // ---- Panels -----------------------------------------------------------
     World            *world = engine_get_world(editor->engine);
@@ -261,12 +279,23 @@ void editor_begin_frame(Editor *editor) {
         panel_console_render(&editor->show_console);
     }
 
+    // ---- Scene View (always-on editor viewport) ---------------------------
+    if (editor->show_scene_view) {
+        Platform *plat = engine_get_platform(editor->engine);
+        Renderer *rend = engine_get_renderer(editor->engine);
+        uint32_t fb_w = 800, fb_h = 600;
+        platform_get_framebuffer_size(plat, &fb_w, &fb_h);
+        panel_scene_view_render(&editor->show_scene_view, rend, fb_w, fb_h);
+    }
+
+    // ---- Game View (play-mode viewport) -----------------------------------
     if (editor->show_game_view) {
         Platform *plat = engine_get_platform(editor->engine);
         Renderer *rend = engine_get_renderer(editor->engine);
         uint32_t fb_w = 800, fb_h = 600;
         platform_get_framebuffer_size(plat, &fb_w, &fb_h);
-        panel_game_view_render(&editor->show_game_view, rend, fb_w, fb_h);
+        panel_game_view_render(&editor->show_game_view, rend, fb_w, fb_h,
+                               curr_state);
     }
 
     if (editor->show_sprite_editor) {
@@ -288,11 +317,60 @@ void editor_begin_frame(Editor *editor) {
                                        am, rend);
     }
 
+    // ---- Input routing: game input active when either viewport focused ----
     Input *input = engine_get_input(editor->engine);
     if (input != nullptr) {
-        input_set_game_active(input, panel_game_view_is_focused());
+        bool viewport_focused = panel_game_view_is_focused() ||
+                                panel_scene_view_is_focused();
+        input_set_game_active(input, viewport_focused);
     }
 
+    // ---- Entity picking (Scene View) --------------------------------------
+    if (panel_scene_view_is_hovered() && igIsMouseClicked_Bool(0, false)) {
+        float min_x = 0, min_y = 0, max_x = 0, max_y = 0;
+        panel_scene_view_get_content_bounds(&min_x, &min_y, &max_x, &max_y);
+
+        ImVec2_c mouse_pos_c = igGetMousePos();
+        ImVec2 mouse_pos = { mouse_pos_c.x, mouse_pos_c.y };
+
+        float image_w = max_x - min_x;
+        float image_h = max_y - min_y;
+
+        if (image_w > 0.0f && image_h > 0.0f) {
+            float local_x = mouse_pos.x - min_x;
+            float local_y = mouse_pos.y - min_y;
+
+            if (local_x >= 0.0f && local_x < image_w && local_y >= 0.0f && local_y < image_h) {
+                Renderer *rend = engine_get_renderer(editor->engine);
+                uint32_t offscreen_w = 0, offscreen_h = 0;
+                vulkan_renderer_get_offscreen_size(rend, &offscreen_w, &offscreen_h);
+
+                if (offscreen_w > 0 && offscreen_h > 0) {
+                    float norm_x = local_x / image_w;
+                    float norm_y = local_y / image_h;
+
+                    uint32_t pixel_x = (uint32_t)(norm_x * offscreen_w);
+                    uint32_t pixel_y = (uint32_t)(norm_y * offscreen_h);
+
+                    if (pixel_x >= offscreen_w) pixel_x = offscreen_w - 1;
+                    if (pixel_y >= offscreen_h) pixel_y = offscreen_h - 1;
+
+                    uint32_t picked_entity = vulkan_renderer_pick_entity(rend, pixel_x, pixel_y);
+
+                    if (picked_entity != 0) {
+                        editor->selected_entity = entity_index(picked_entity);
+                        editor->has_selection = true;
+                        console_log("[editor] Selected entity %u via Scene View picking", editor->selected_entity);
+                    } else {
+                        editor->has_selection = false;
+                        console_log("[editor] Selection cleared");
+                    }
+                }
+            }
+        }
+    }
+
+    // ---- Entity picking (Game View) ---------------------------------------
     if (panel_game_view_is_hovered() && igIsMouseClicked_Bool(0, false)) {
         float min_x = 0, min_y = 0, max_x = 0, max_y = 0;
         panel_game_view_get_content_bounds(&min_x, &min_y, &max_x, &max_y);

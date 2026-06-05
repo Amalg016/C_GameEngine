@@ -65,6 +65,9 @@ void asset_manager_set_callbacks(AssetManager               *am,
 AssetHandle asset_manager_load_texture(AssetManager *am,
                                        const char   *path);
 
+/// Retrieve the handle for a loaded asset path. Returns ASSET_HANDLE_INVALID if not loaded.
+[[nodiscard]] AssetHandle asset_manager_get_handle(const AssetManager *am, const char *path);
+
 /// Increment the reference count for an existing handle.
 void asset_manager_add_ref(AssetManager *am, AssetHandle handle);
 

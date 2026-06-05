@@ -189,6 +189,41 @@ static void texmap_insert(TexMap *map, const char *path, AssetHandle handle) {
     map->count++;
 }
 
+static void release_manifest_textures(Engine *engine, const char *filepath) {
+    if (filepath == nullptr) return;
+
+    AssetManager *am = engine_get_asset_manager(engine);
+    if (am == nullptr) return;
+
+    char *json_str = read_file_to_string(filepath);
+    if (json_str == nullptr) return;
+
+    cJSON *root = cJSON_Parse(json_str);
+    if (root == nullptr) {
+        free(json_str);
+        return;
+    }
+
+    cJSON *assets = cJSON_GetObjectItemCaseSensitive(root, "assets");
+    if (assets != nullptr) {
+        cJSON *textures = cJSON_GetObjectItemCaseSensitive(assets, "textures");
+        if (cJSON_IsArray(textures)) {
+            cJSON *tex_path = nullptr;
+            cJSON_ArrayForEach(tex_path, textures) {
+                if (!cJSON_IsString(tex_path)) continue;
+                const char *path = tex_path->valuestring;
+                AssetHandle h = asset_manager_get_handle(am, path);
+                if (h != ASSET_HANDLE_INVALID) {
+                    asset_manager_release(am, h);
+                }
+            }
+        }
+    }
+
+    cJSON_Delete(root);
+    free(json_str);
+}
+
 // ===========================================================================
 // scene_unload
 // ===========================================================================
@@ -218,6 +253,12 @@ void scene_unload(Engine *engine) {
             printf("[scene] released %u sprite asset reference(s)\n",
                    spr_pool->count);
         }
+    }
+
+    // Release preloaded manifest textures.
+    const char *current_scene = engine_get_current_scene(engine);
+    if (current_scene != nullptr) {
+        release_manifest_textures(engine, current_scene);
     }
 
     // Release all Lua script instance references (calls on_destroy on each).
@@ -459,6 +500,9 @@ bool scene_load(Engine *engine, const char *filepath) {
                     if (h == ASSET_HANDLE_INVALID) {
                         // Texture wasn't in the manifest — try loading on the fly.
                         h = asset_manager_load_texture(am, tex_item->valuestring);
+                    } else {
+                        // Texture was preloaded by manifest, increment ref count for Sprite component ownership
+                        asset_manager_add_ref(am, h);
                     }
                     if (h != ASSET_HANDLE_INVALID) {
                         // Query texture dimensions for UV computation.

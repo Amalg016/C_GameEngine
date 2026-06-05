@@ -224,6 +224,15 @@ AssetHandle asset_manager_load_texture(AssetManager *am,
     return h;
 }
 
+AssetHandle asset_manager_get_handle(const AssetManager *am, const char *path) {
+    if (am == nullptr || path == nullptr) return ASSET_HANDLE_INVALID;
+    uint32_t idx = find_by_path(am, path);
+    if (idx < am->capacity) {
+        return am->entries[idx].handle;
+    }
+    return ASSET_HANDLE_INVALID;
+}
+
 void asset_manager_add_ref(AssetManager *am, AssetHandle handle) {
     if (am == nullptr) return;
     uint32_t idx = find_by_handle(am, handle);

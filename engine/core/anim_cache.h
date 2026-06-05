@@ -10,7 +10,7 @@ typedef struct AnimCache AnimCache;
 [[nodiscard]] AnimCache *anim_cache_create(void);
 
 /// Destroy the cache and free all loaded AnimData.
-void anim_cache_destroy(AnimCache *cache);
+void anim_cache_destroy(AnimCache *cache, AssetManager *am);
 
 /// Load (or retrieve from cache) the AnimData at the given .anim.meta path.
 /// Returns a borrowed pointer — the cache owns the AnimData.

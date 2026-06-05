@@ -36,8 +36,18 @@ AnimCache *anim_cache_create(void) {
     return cache;
 }
 
-void anim_cache_destroy(AnimCache *cache) {
+void anim_cache_destroy(AnimCache *cache, AssetManager *am) {
     if (cache == nullptr) return;
+    if (am != nullptr) {
+        for (uint32_t i = 0; i < AnimCacheMaxEntries; ++i) {
+            if (cache->ctrl_entries[i].used) {
+                if (cache->ctrl_entries[i].ctrl.texture != ASSET_HANDLE_INVALID) {
+                    asset_manager_release(am, cache->ctrl_entries[i].ctrl.texture);
+                    cache->ctrl_entries[i].ctrl.texture = ASSET_HANDLE_INVALID;
+                }
+            }
+        }
+    }
     free(cache);
 }
 

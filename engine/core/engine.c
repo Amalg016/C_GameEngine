@@ -345,7 +345,7 @@ void engine_destroy(Engine *engine) {
 
     // 2b. Animation cache.
     if (engine->anim_cache != nullptr) {
-        anim_cache_destroy(engine->anim_cache);
+        anim_cache_destroy(engine->anim_cache, engine->asset_manager);
         engine->anim_cache = nullptr;
     }
 

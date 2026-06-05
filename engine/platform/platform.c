@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // ---------------------------------------------------------------------------
 // Platform internals — GLFW stays confined to this translation unit.
@@ -170,5 +171,32 @@ void platform_get_framebuffer_size(const Platform *p,
 
 double platform_get_time(void) {
     return glfwGetTime();
+}
+
+void platform_poll_gamepad(const Platform *p, Input *input) {
+    if (p == nullptr || input == nullptr) return;
+
+    GLFWgamepadstate state;
+    if (glfwJoystickPresent(GLFW_JOYSTICK_1) && glfwGetGamepadState(GLFW_JOYSTICK_1, &state)) {
+        input->gamepad_connected = true;
+        for (int i = 0; i < INPUT_GAMEPAD_BUTTON_COUNT; ++i) {
+            bool is_down = (state.buttons[i] == GLFW_PRESS);
+            bool was_down = input->gamepad_buttons[i];
+            input->gamepad_buttons_pressed[i] = (is_down && !was_down);
+            input->gamepad_buttons_released[i] = (!is_down && was_down);
+            input->gamepad_buttons[i] = is_down;
+        }
+        for (int i = 0; i < INPUT_GAMEPAD_AXIS_COUNT; ++i) {
+            input->gamepad_axes[i] = state.axes[i];
+        }
+    } else {
+        if (input->gamepad_connected) {
+            memset(input->gamepad_buttons, 0, sizeof(input->gamepad_buttons));
+            memset(input->gamepad_buttons_pressed, 0, sizeof(input->gamepad_buttons_pressed));
+            memset(input->gamepad_buttons_released, 0, sizeof(input->gamepad_buttons_released));
+            memset(input->gamepad_axes, 0, sizeof(input->gamepad_axes));
+            input->gamepad_connected = false;
+        }
+    }
 }
 

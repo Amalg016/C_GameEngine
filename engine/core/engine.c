@@ -243,6 +243,7 @@ void engine_run(Engine *engine) {
     while (!platform_should_close(engine->platform)) {
         input_begin_frame(&engine->input);          // clear previous frame edges
         platform_poll_events(engine->platform);     // fills new edges + keys_down
+        platform_poll_gamepad(engine->platform, &engine->input);
         clock_tick(&engine->clock);
 
         // ----- fixed update: drain accumulator at a constant rate ----------

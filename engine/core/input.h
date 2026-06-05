@@ -72,6 +72,33 @@ typedef enum MouseButton {
     MOUSE_BUTTON_MIDDLE = 2,
 } MouseButton;
 
+#define INPUT_GAMEPAD_BUTTON_A               0
+#define INPUT_GAMEPAD_BUTTON_B               1
+#define INPUT_GAMEPAD_BUTTON_X               2
+#define INPUT_GAMEPAD_BUTTON_Y               3
+#define INPUT_GAMEPAD_BUTTON_LEFT_BUMPER     4
+#define INPUT_GAMEPAD_BUTTON_RIGHT_BUMPER    5
+#define INPUT_GAMEPAD_BUTTON_BACK            6
+#define INPUT_GAMEPAD_BUTTON_START           7
+#define INPUT_GAMEPAD_BUTTON_GUIDE           8
+#define INPUT_GAMEPAD_BUTTON_LEFT_THUMB      9
+#define INPUT_GAMEPAD_BUTTON_RIGHT_THUMB     10
+#define INPUT_GAMEPAD_BUTTON_DPAD_UP         11
+#define INPUT_GAMEPAD_BUTTON_DPAD_RIGHT      12
+#define INPUT_GAMEPAD_BUTTON_DPAD_DOWN       13
+#define INPUT_GAMEPAD_BUTTON_DPAD_LEFT       14
+#define INPUT_GAMEPAD_BUTTON_LAST            INPUT_GAMEPAD_BUTTON_DPAD_LEFT
+#define INPUT_GAMEPAD_BUTTON_COUNT           15
+
+#define INPUT_GAMEPAD_AXIS_LEFT_X            0
+#define INPUT_GAMEPAD_AXIS_LEFT_Y            1
+#define INPUT_GAMEPAD_AXIS_RIGHT_X           2
+#define INPUT_GAMEPAD_AXIS_RIGHT_Y           3
+#define INPUT_GAMEPAD_AXIS_LEFT_TRIGGER      4
+#define INPUT_GAMEPAD_AXIS_RIGHT_TRIGGER     5
+#define INPUT_GAMEPAD_AXIS_LAST              INPUT_GAMEPAD_AXIS_RIGHT_TRIGGER
+#define INPUT_GAMEPAD_AXIS_COUNT             6
+
 /// Input state — owned by the engine, updated each frame.
 typedef struct Input {
     // Keyboard: current frame state.
@@ -95,6 +122,13 @@ typedef struct Input {
     // Scroll wheel delta this frame.
     double scroll_dx;
     double scroll_dy;
+
+    // Gamepad state (joystick 1)
+    bool  gamepad_connected;
+    bool  gamepad_buttons[INPUT_GAMEPAD_BUTTON_COUNT];
+    bool  gamepad_buttons_pressed[INPUT_GAMEPAD_BUTTON_COUNT];
+    bool  gamepad_buttons_released[INPUT_GAMEPAD_BUTTON_COUNT];
+    float gamepad_axes[INPUT_GAMEPAD_AXIS_COUNT];
 
     // Internal: previous frame mouse position for delta calculation.
     double _prev_mouse_x;
@@ -155,6 +189,27 @@ static inline bool input_button_pressed(const Input *input, int button) {
 static inline bool input_button_released(const Input *input, int button) {
     return button >= 0 && button < INPUT_MAX_BUTTONS
         && input->buttons_released[button];
+}
+
+/// True while the gamepad button is held down.
+static inline bool input_gamepad_down(const Input *input, int button) {
+    return input->gamepad_connected && button >= 0 && button < INPUT_GAMEPAD_BUTTON_COUNT && input->gamepad_buttons[button];
+}
+
+/// True for exactly one frame when the gamepad button is first pressed.
+static inline bool input_gamepad_pressed(const Input *input, int button) {
+    return input->gamepad_connected && button >= 0 && button < INPUT_GAMEPAD_BUTTON_COUNT && input->gamepad_buttons_pressed[button];
+}
+
+/// True for exactly one frame when the gamepad button is released.
+static inline bool input_gamepad_released(const Input *input, int button) {
+    return input->gamepad_connected && button >= 0 && button < INPUT_GAMEPAD_BUTTON_COUNT && input->gamepad_buttons_released[button];
+}
+
+/// Retrieve the analog axis value (-1.0 to 1.0). Returns 0.0 if not connected or invalid axis.
+static inline float input_gamepad_axis(const Input *input, int axis) {
+    if (!input->gamepad_connected || axis < 0 || axis >= INPUT_GAMEPAD_AXIS_COUNT) return 0.0f;
+    return input->gamepad_axes[axis];
 }
 
 static inline void input_set_game_active(Input *input, bool active) {

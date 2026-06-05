@@ -236,10 +236,12 @@ static void system_platformer_input_queue(AppState *app) {
 
     for (uint32_t i = 0; i < ctrl_pool->count; ++i) {
         PlatformerController *ctrl = (PlatformerController *)component_pool_get_dense(ctrl_pool, i);
-        if (input_key_pressed(input, ctrl->key_jump)) {
+        if (input_key_pressed(input, ctrl->key_jump) || input_gamepad_pressed(input, INPUT_GAMEPAD_BUTTON_A)) {
             ctrl->jump_queued = true;
         }
-        if (input_key_pressed(input, ctrl->key_dash)) {
+        if (input_key_pressed(input, ctrl->key_dash) || 
+            input_gamepad_pressed(input, INPUT_GAMEPAD_BUTTON_X) || 
+            input_gamepad_pressed(input, INPUT_GAMEPAD_BUTTON_RIGHT_BUMPER)) {
             ctrl->dash_queued = true;
         }
     }

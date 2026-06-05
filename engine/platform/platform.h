@@ -56,4 +56,7 @@ void platform_get_framebuffer_size(const Platform *p,
 /// Returns elapsed time in seconds since GLFW init (high-res monotonic clock).
 double platform_get_time(void);
 
+/// Poll gamepad state and update Input structure.
+void platform_poll_gamepad(const Platform *p, Input *input);
+
 #endif // ENGINE_PLATFORM_H

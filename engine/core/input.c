@@ -18,6 +18,8 @@ void input_begin_frame(Input *input) {
     memset(input->keys_released,    0, sizeof(input->keys_released));
     memset(input->buttons_pressed,  0, sizeof(input->buttons_pressed));
     memset(input->buttons_released, 0, sizeof(input->buttons_released));
+    memset(input->gamepad_buttons_pressed, 0, sizeof(input->gamepad_buttons_pressed));
+    memset(input->gamepad_buttons_released, 0, sizeof(input->gamepad_buttons_released));
 
     // Compute mouse delta from the previous frame.
     if (input->_first_mouse) {

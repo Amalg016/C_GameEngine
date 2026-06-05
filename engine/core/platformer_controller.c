@@ -50,6 +50,26 @@ ComponentId platformer_collider_get_id(void) {
     return s_collider_id;
 }
 
+static float get_platformer_move_input(const Input *input, const PlatformerController *ctrl) {
+    if (!input_is_game_active(input)) return 0.0f;
+    float move = 0.0f;
+    if (input_key_down(input, ctrl->key_left)) move -= 1.0f;
+    if (input_key_down(input, ctrl->key_right)) move += 1.0f;
+
+    if (input->gamepad_connected) {
+        float axis_x = input_gamepad_axis(input, INPUT_GAMEPAD_AXIS_LEFT_X);
+        if (fabsf(axis_x) > 0.2f) { // 20% deadzone
+            move += axis_x;
+        }
+        if (input_gamepad_down(input, INPUT_GAMEPAD_BUTTON_DPAD_LEFT)) move -= 1.0f;
+        if (input_gamepad_down(input, INPUT_GAMEPAD_BUTTON_DPAD_RIGHT)) move += 1.0f;
+    }
+
+    if (move < -1.0f) move = -1.0f;
+    if (move > 1.0f) move = 1.0f;
+    return move;
+}
+
 void platformer_system_update(World *world, const Input *input, const HierarchyContext *hctx, double dt) {
     if (world == nullptr || hctx == nullptr) return;
 
@@ -104,11 +124,7 @@ void platformer_system_update(World *world, const Input *input, const HierarchyC
             ctrl->velocity_x = ctrl->dash_dir_x * ctrl->dash_speed;
         } else {
             // 2. Horizontal Movement
-            float move_input = 0.0f;
-            if (game_active) {
-                if (input_key_down(input, ctrl->key_left)) move_input -= 1.0f;
-                if (input_key_down(input, ctrl->key_right)) move_input += 1.0f;
-            }
+            float move_input = get_platformer_move_input(input, ctrl);
 
             if (move_input != 0.0f) {
                 ctrl->facing_dir = (move_input > 0.0f) ? 1 : -1;
@@ -137,7 +153,7 @@ void platformer_system_update(World *world, const Input *input, const HierarchyC
                 }
             } else {
                 // Variable Jump Height: Apply extra gravity when jump button is released early
-                bool jump_held = game_active && input_key_down(input, ctrl->key_jump);
+                bool jump_held = game_active && (input_key_down(input, ctrl->key_jump) || input_gamepad_down(input, INPUT_GAMEPAD_BUTTON_A));
                 if (ctrl->velocity_y < 0.0f && !jump_held) {
                     ctrl->velocity_y += ctrl->gravity * ctrl->jump_cut_gravity_mult * fdt;
                 } else {
@@ -306,11 +322,7 @@ void platformer_system_update(World *world, const Input *input, const HierarchyC
 
                 // Slide down logic
                 if (ctrl->enable_wall_jump && ctrl->wall_dir != 0 && ctrl->velocity_y > 0.0f) {
-                    float move_input = 0.0f;
-                    if (game_active) {
-                        if (input_key_down(input, ctrl->key_left)) move_input -= 1.0f;
-                        if (input_key_down(input, ctrl->key_right)) move_input += 1.0f;
-                    }
+                    float move_input = get_platformer_move_input(input, ctrl);
 
                     // Must hold direction against the wall to slide
                     if ((ctrl->wall_dir == -1 && move_input < 0.0f) || (ctrl->wall_dir == 1 && move_input > 0.0f)) {

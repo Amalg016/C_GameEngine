@@ -260,6 +260,23 @@ void engine_run(Engine *engine) {
                 engine->clock.delta_time);
         }
 
+        // ----- editor-mode transform sync ----------------------------------
+        // When not playing, game callbacks are suppressed, but we still need
+        // to propagate LocalTransform → WorldTransform and refresh the camera
+        // so that inspector edits are immediately visible in the viewports.
+        if (engine->play_state != PLAY_STATE_PLAYING) {
+            if (engine->hctx_inited) {
+                hierarchy_update_transforms(engine->world, &engine->hctx);
+            }
+            if (engine->hctx_inited && engine->cam_ctx_inited) {
+                uint32_t fb_w = 800, fb_h = 600;
+                platform_get_framebuffer_size(engine->platform, &fb_w, &fb_h);
+                float aspect = (fb_h > 0) ? (float)fb_w / (float)fb_h : 1.0f;
+                camera_update(engine->world, &engine->cam_ctx,
+                              &engine->hctx, aspect);
+            }
+        }
+
         // ----- render ------------------------------------------------------
         if (renderer_begin_frame(&engine->renderer)) {
             double alpha = clock_get_alpha(&engine->clock);

@@ -267,6 +267,10 @@ void engine_run(Engine *engine) {
         if (engine->play_state != PLAY_STATE_PLAYING) {
             if (engine->hctx_inited) {
                 hierarchy_update_transforms(engine->world, &engine->hctx);
+                // Sync PreviousPosition to match the fresh WorldTransform so
+                // that render-time interpolation (lerp(prev, wt, alpha)) does
+                // not jitter between stale and current values.
+                hierarchy_snapshot_positions(engine->world, &engine->hctx);
             }
             if (engine->hctx_inited && engine->cam_ctx_inited) {
                 uint32_t fb_w = 800, fb_h = 600;

@@ -6,6 +6,7 @@
 #include "animation.h"
 #include "anim_controller.h"
 #include "anim_cache.h"
+#include "platformer_controller.h"
 #include "../renderer/renderer.h"
 
 // Lua host internal accessors — needed for Sprite/Velocity ComponentIds.
@@ -590,6 +591,114 @@ bool scene_load(Engine *engine, const char *filepath) {
                     }
                 }
             }
+
+            // -- platformer_controller -------------------------------------------
+            ComponentId c_pctrl = platformer_controller_get_id();
+            cJSON *pctrl_json = cJSON_GetObjectItemCaseSensitive(comps, "platformer_controller");
+            if (pctrl_json != nullptr && c_pctrl != UINT8_MAX) {
+                PlatformerController pctrl = {};
+                
+                cJSON *g_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "gravity");
+                pctrl.gravity = cJSON_IsNumber(g_j) ? (float)g_j->valuedouble : 9.81f;
+
+                cJSON *mfs_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "max_fall_speed");
+                pctrl.max_fall_speed = cJSON_IsNumber(mfs_j) ? (float)mfs_j->valuedouble : 20.0f;
+
+                cJSON *rs_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "run_speed");
+                pctrl.run_speed = cJSON_IsNumber(rs_j) ? (float)rs_j->valuedouble : 5.0f;
+
+                cJSON *ra_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "run_acceleration");
+                pctrl.run_acceleration = cJSON_IsNumber(ra_j) ? (float)ra_j->valuedouble : 30.0f;
+
+                cJSON *rd_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "run_deceleration");
+                pctrl.run_deceleration = cJSON_IsNumber(rd_j) ? (float)rd_j->valuedouble : 30.0f;
+
+                cJSON *jf_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "jump_force");
+                pctrl.jump_force = cJSON_IsNumber(jf_j) ? (float)jf_j->valuedouble : 8.0f;
+
+                cJSON *jcg_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "jump_cut_gravity_mult");
+                pctrl.jump_cut_gravity_mult = cJSON_IsNumber(jcg_j) ? (float)jcg_j->valuedouble : 2.5f;
+
+                cJSON *cot_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "coyote_time");
+                pctrl.coyote_time = cJSON_IsNumber(cot_j) ? (float)cot_j->valuedouble : 0.15f;
+
+                cJSON *jbt_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "jump_buffer_time");
+                pctrl.jump_buffer_time = cJSON_IsNumber(jbt_j) ? (float)jbt_j->valuedouble : 0.1f;
+
+                cJSON *mj_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "max_jumps");
+                pctrl.max_jumps = cJSON_IsNumber(mj_j) ? (int32_t)mj_j->valuedouble : 1;
+
+                cJSON *ds_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "dash_speed");
+                pctrl.dash_speed = cJSON_IsNumber(ds_j) ? (float)ds_j->valuedouble : 15.0f;
+
+                cJSON *dd_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "dash_duration");
+                pctrl.dash_duration = cJSON_IsNumber(dd_j) ? (float)dd_j->valuedouble : 0.2f;
+
+                cJSON *dc_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "dash_cooldown");
+                pctrl.dash_cooldown = cJSON_IsNumber(dc_j) ? (float)dc_j->valuedouble : 0.6f;
+
+                cJSON *wss_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "wall_slide_speed");
+                pctrl.wall_slide_speed = cJSON_IsNumber(wss_j) ? (float)wss_j->valuedouble : 2.0f;
+
+                cJSON *wjfx_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "wall_jump_force_x");
+                pctrl.wall_jump_force_x = cJSON_IsNumber(wjfx_j) ? (float)wjfx_j->valuedouble : 6.0f;
+
+                cJSON *wjfy_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "wall_jump_force_y");
+                pctrl.wall_jump_force_y = cJSON_IsNumber(wjfy_j) ? (float)wjfy_j->valuedouble : 8.0f;
+
+                cJSON *wjcl_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "wall_jump_control_lock");
+                pctrl.wall_jump_control_lock = cJSON_IsNumber(wjcl_j) ? (float)wjcl_j->valuedouble : 0.15f;
+
+                cJSON *kl_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "key_left");
+                pctrl.key_left = cJSON_IsNumber(kl_j) ? (int32_t)kl_j->valuedouble : 65; // KEY_A
+
+                cJSON *kr_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "key_right");
+                pctrl.key_right = cJSON_IsNumber(kr_j) ? (int32_t)kr_j->valuedouble : 68; // KEY_D
+
+                cJSON *kj_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "key_jump");
+                pctrl.key_jump = cJSON_IsNumber(kj_j) ? (int32_t)kj_j->valuedouble : 32; // KEY_SPACE
+
+                cJSON *kd_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "key_dash");
+                pctrl.key_dash = cJSON_IsNumber(kd_j) ? (int32_t)kd_j->valuedouble : 340; // KEY_LEFT_SHIFT
+
+                cJSON *edj_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "enable_double_jump");
+                pctrl.enable_double_jump = cJSON_IsBool(edj_j) ? cJSON_IsTrue(edj_j) : true;
+
+                cJSON *ewj_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "enable_wall_jump");
+                pctrl.enable_wall_jump = cJSON_IsBool(ewj_j) ? cJSON_IsTrue(ewj_j) : true;
+
+                cJSON *ed_j = cJSON_GetObjectItemCaseSensitive(pctrl_json, "enable_dash");
+                pctrl.enable_dash = cJSON_IsBool(ed_j) ? cJSON_IsTrue(ed_j) : true;
+
+                pctrl.facing_dir = 1;
+                pctrl.can_dash = true;
+
+                world_add_component(world, live, c_pctrl, &pctrl);
+            }
+
+            // -- platformer_collider ---------------------------------------------
+            ComponentId c_pcol = platformer_collider_get_id();
+            cJSON *pcol_json = cJSON_GetObjectItemCaseSensitive(comps, "platformer_collider");
+            if (pcol_json != nullptr && c_pcol != UINT8_MAX) {
+                PlatformerCollider pcol = {};
+
+                cJSON *w_j = cJSON_GetObjectItemCaseSensitive(pcol_json, "width");
+                pcol.width = cJSON_IsNumber(w_j) ? (float)w_j->valuedouble : 1.0f;
+
+                cJSON *h_j = cJSON_GetObjectItemCaseSensitive(pcol_json, "height");
+                pcol.height = cJSON_IsNumber(h_j) ? (float)h_j->valuedouble : 1.0f;
+
+                cJSON *ox_j = cJSON_GetObjectItemCaseSensitive(pcol_json, "offset_x");
+                pcol.offset_x = cJSON_IsNumber(ox_j) ? (float)ox_j->valuedouble : 0.0f;
+
+                cJSON *oy_j = cJSON_GetObjectItemCaseSensitive(pcol_json, "offset_y");
+                pcol.offset_y = cJSON_IsNumber(oy_j) ? (float)oy_j->valuedouble : 0.0f;
+
+                cJSON *sol_j = cJSON_GetObjectItemCaseSensitive(pcol_json, "is_solid");
+                pcol.is_solid = cJSON_IsBool(sol_j) ? cJSON_IsTrue(sol_j) : true;
+
+                world_add_component(world, live, c_pcol, &pcol);
+            }
         }
     }
 
@@ -857,6 +966,53 @@ bool scene_save(Engine *engine, const char *filepath) {
                         }
                     }
                 }
+            }
+        }
+
+        // -- platformer_controller -------------------------------------------
+        ComponentId c_plat_ctrl = platformer_controller_get_id();
+        if (c_plat_ctrl != UINT8_MAX) {
+            PlatformerController *plat = (PlatformerController *)world_get_component(world, ent, c_plat_ctrl);
+            if (plat != nullptr) {
+                cJSON *plat_obj = cJSON_AddObjectToObject(comps, "platformer_controller");
+                cJSON_AddNumberToObject(plat_obj, "gravity", (double)plat->gravity);
+                cJSON_AddNumberToObject(plat_obj, "max_fall_speed", (double)plat->max_fall_speed);
+                cJSON_AddNumberToObject(plat_obj, "run_speed", (double)plat->run_speed);
+                cJSON_AddNumberToObject(plat_obj, "run_acceleration", (double)plat->run_acceleration);
+                cJSON_AddNumberToObject(plat_obj, "run_deceleration", (double)plat->run_deceleration);
+                cJSON_AddNumberToObject(plat_obj, "jump_force", (double)plat->jump_force);
+                cJSON_AddNumberToObject(plat_obj, "jump_cut_gravity_mult", (double)plat->jump_cut_gravity_mult);
+                cJSON_AddNumberToObject(plat_obj, "coyote_time", (double)plat->coyote_time);
+                cJSON_AddNumberToObject(plat_obj, "jump_buffer_time", (double)plat->jump_buffer_time);
+                cJSON_AddNumberToObject(plat_obj, "max_jumps", (double)plat->max_jumps);
+                cJSON_AddNumberToObject(plat_obj, "dash_speed", (double)plat->dash_speed);
+                cJSON_AddNumberToObject(plat_obj, "dash_duration", (double)plat->dash_duration);
+                cJSON_AddNumberToObject(plat_obj, "dash_cooldown", (double)plat->dash_cooldown);
+                cJSON_AddNumberToObject(plat_obj, "wall_slide_speed", (double)plat->wall_slide_speed);
+                cJSON_AddNumberToObject(plat_obj, "wall_jump_force_x", (double)plat->wall_jump_force_x);
+                cJSON_AddNumberToObject(plat_obj, "wall_jump_force_y", (double)plat->wall_jump_force_y);
+                cJSON_AddNumberToObject(plat_obj, "wall_jump_control_lock", (double)plat->wall_jump_control_lock);
+                cJSON_AddNumberToObject(plat_obj, "key_left", (double)plat->key_left);
+                cJSON_AddNumberToObject(plat_obj, "key_right", (double)plat->key_right);
+                cJSON_AddNumberToObject(plat_obj, "key_jump", (double)plat->key_jump);
+                cJSON_AddNumberToObject(plat_obj, "key_dash", (double)plat->key_dash);
+                cJSON_AddBoolToObject(plat_obj, "enable_double_jump", plat->enable_double_jump);
+                cJSON_AddBoolToObject(plat_obj, "enable_wall_jump", plat->enable_wall_jump);
+                cJSON_AddBoolToObject(plat_obj, "enable_dash", plat->enable_dash);
+            }
+        }
+
+        // -- platformer_collider ---------------------------------------------
+        ComponentId c_plat_col = platformer_collider_get_id();
+        if (c_plat_col != UINT8_MAX) {
+            PlatformerCollider *col = (PlatformerCollider *)world_get_component(world, ent, c_plat_col);
+            if (col != nullptr) {
+                cJSON *col_obj = cJSON_AddObjectToObject(comps, "platformer_collider");
+                cJSON_AddNumberToObject(col_obj, "width", (double)col->width);
+                cJSON_AddNumberToObject(col_obj, "height", (double)col->height);
+                cJSON_AddNumberToObject(col_obj, "offset_x", (double)col->offset_x);
+                cJSON_AddNumberToObject(col_obj, "offset_y", (double)col->offset_y);
+                cJSON_AddBoolToObject(col_obj, "is_solid", col->is_solid);
             }
         }
 

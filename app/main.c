@@ -7,6 +7,7 @@
 #include "../engine/core/ecs/ecs.h"
 #include "../engine/core/input.h"
 #include "../engine/core/scripting/lua_host.h"
+#include "../engine/core/platformer_controller.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -197,6 +198,9 @@ static void on_fixed_update(void *user_data, double dt) {
     // 2. Run movement (modifies LocalTransform).
     system_movement(app, dt);
 
+    // Run platformer system update (modifies LocalTransform under physics/collision sweeps)
+    platformer_system_update(app->world, engine_get_input(app->engine), app->hctx, dt);
+
 
     // 3. Propagate transforms (LocalTransform → WorldTransform).
     hierarchy_update_transforms(app->world, app->hctx);
@@ -220,10 +224,34 @@ static void on_fixed_update(void *user_data, double dt) {
     }
 }
 
+static void system_platformer_input_queue(AppState *app) {
+    ComponentId c_plat_ctrl = platformer_controller_get_id();
+    if (c_plat_ctrl == UINT8_MAX) return;
+
+    ComponentPool *ctrl_pool = world_get_pool(app->world, c_plat_ctrl);
+    if (ctrl_pool == nullptr) return;
+
+    const Input *input = engine_get_input(app->engine);
+    if (!input_is_game_active(input)) return;
+
+    for (uint32_t i = 0; i < ctrl_pool->count; ++i) {
+        PlatformerController *ctrl = (PlatformerController *)component_pool_get_dense(ctrl_pool, i);
+        if (input_key_pressed(input, ctrl->key_jump)) {
+            ctrl->jump_queued = true;
+        }
+        if (input_key_pressed(input, ctrl->key_dash)) {
+            ctrl->dash_queued = true;
+        }
+    }
+}
+
 /// Called once per frame with the real (variable) frame delta.
 static void on_update(void *user_data, double dt) {
     AppState *app = (AppState *)user_data;
     app->frame_time += dt;
+
+    // Queue platformer inputs before updating standard systems
+    system_platformer_input_queue(app);
 
     // Advance animation playback (modifies Sprite components).
     system_animation_update(app, dt);

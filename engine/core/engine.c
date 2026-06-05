@@ -7,6 +7,7 @@
 #include "scene.h"
 #include "scripting/lua_host.h"
 #include "anim_cache.h"
+#include "platformer_controller.h"
 
 #ifdef EDITOR_BUILD
 #include "../editor/editor.h"
@@ -176,6 +177,9 @@ bool engine_init(Engine *engine) {
     };
     asset_manager_set_callbacks(engine->asset_manager, &cbs);
     asset_manager_set_renderer(engine->asset_manager, &engine->renderer);
+
+    // Initialise platformer controller systems
+    platformer_system_init(engine->world);
 
 #ifdef EDITOR_BUILD
     // Create the editor layer now that the renderer is fully ready.

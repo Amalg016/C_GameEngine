@@ -13,6 +13,7 @@
 #include "../../core/anim_controller.h"
 #include "../../core/anim_cache.h"
 #include "../../core/scripting/lua_host.h"
+#include "../../core/platformer_controller.h"
 
 #include <lua5.4/lua.h>
 #include <lua5.4/lauxlib.h>
@@ -747,6 +748,94 @@ void panel_inspector_render(bool *p_open,
         }
     }
 
+    // ---- PlatformerController ----------------------------------------------
+    ComponentId c_plat_ctrl = platformer_controller_get_id();
+    if (c_plat_ctrl != UINT8_MAX) {
+        PlatformerController *plat = (PlatformerController *)world_get_component(
+            world, ent, c_plat_ctrl);
+        if (plat != nullptr) {
+            bool header_open = igCollapsingHeader_BoolPtr("Platformer Controller", nullptr,
+                                                          ImGuiTreeNodeFlags_DefaultOpen);
+            if (igBeginPopupContextItem("PlatformerControllerHeaderContext", ImGuiPopupFlags_MouseButtonRight)) {
+                if (igMenuItem_Bool("Remove Component", nullptr, false, true)) {
+                    world_remove_component(world, ent, c_plat_ctrl);
+                }
+                igEndPopup();
+            }
+            if (header_open) {
+                igCheckbox("Enable Double Jump", &plat->enable_double_jump);
+                igSameLine(0.0f, 10.0f);
+                igCheckbox("Enable Wall Jump", &plat->enable_wall_jump);
+                igSameLine(0.0f, 10.0f);
+                igCheckbox("Enable Dash", &plat->enable_dash);
+                igSeparator();
+
+                igDragFloat("Gravity", &plat->gravity, 0.1f, 0.0f, 100.0f, "%.2f", 0);
+                igDragFloat("Max Fall Speed", &plat->max_fall_speed, 0.1f, 0.0f, 100.0f, "%.2f", 0);
+                igDragFloat("Run Speed", &plat->run_speed, 0.1f, 0.0f, 100.0f, "%.2f", 0);
+                igDragFloat("Run Accel", &plat->run_acceleration, 0.5f, 0.0f, 500.0f, "%.2f", 0);
+                igDragFloat("Run Decel", &plat->run_deceleration, 0.5f, 0.0f, 500.0f, "%.2f", 0);
+                igDragFloat("Jump Force", &plat->jump_force, 0.1f, 0.0f, 100.0f, "%.2f", 0);
+                igDragFloat("Jump Cut Mult", &plat->jump_cut_gravity_mult, 0.05f, 1.0f, 10.0f, "%.2f", 0);
+                igDragFloat("Coyote Time", &plat->coyote_time, 0.01f, 0.0f, 2.0f, "%.2f", 0);
+                igDragFloat("Jump Buffer", &plat->jump_buffer_time, 0.01f, 0.0f, 2.0f, "%.2f", 0);
+                
+                int32_t mj = plat->max_jumps;
+                if (igDragInt("Max Jumps", &mj, 0.05f, 1, 5, "%d", 0)) {
+                    plat->max_jumps = mj;
+                }
+                
+                igDragFloat("Dash Speed", &plat->dash_speed, 0.1f, 0.0f, 100.0f, "%.2f", 0);
+                igDragFloat("Dash Duration", &plat->dash_duration, 0.01f, 0.0f, 5.0f, "%.2f", 0);
+                igDragFloat("Dash Cooldown", &plat->dash_cooldown, 0.01f, 0.0f, 10.0f, "%.2f", 0);
+                igDragFloat("Wall Slide Speed", &plat->wall_slide_speed, 0.1f, 0.0f, 100.0f, "%.2f", 0);
+                igDragFloat("Wall Jump Force X", &plat->wall_jump_force_x, 0.1f, 0.0f, 100.0f, "%.2f", 0);
+                igDragFloat("Wall Jump Force Y", &plat->wall_jump_force_y, 0.1f, 0.0f, 100.0f, "%.2f", 0);
+                
+                // Read-only debug view of active runtime state
+                igSeparator();
+                igTextDisabled("Runtime State:");
+                igText("Velocity: (%.2f, %.2f)", (double)plat->velocity_x, (double)plat->velocity_y);
+                igText("Grounded: %s | Wall Sliding: %s (dir: %d)",
+                       plat->is_grounded ? "Yes" : "No",
+                       plat->is_wall_sliding ? "Yes" : "No",
+                       plat->wall_dir);
+                igText("Jumps Left: %d | Coyote Timer: %.2f", plat->jumps_remaining, (double)plat->coyote_timer);
+                igText("Dash Timer: %.2f | Cooldown: %.2f", (double)plat->dash_timer, (double)plat->dash_cooldown_timer);
+            }
+        }
+    }
+
+    // ---- PlatformerCollider ------------------------------------------------
+    ComponentId c_plat_col = platformer_collider_get_id();
+    if (c_plat_col != UINT8_MAX) {
+        PlatformerCollider *col = (PlatformerCollider *)world_get_component(
+            world, ent, c_plat_col);
+        if (col != nullptr) {
+            bool header_open = igCollapsingHeader_BoolPtr("Platformer Collider", nullptr,
+                                                          ImGuiTreeNodeFlags_DefaultOpen);
+            if (igBeginPopupContextItem("PlatformerColliderHeaderContext", ImGuiPopupFlags_MouseButtonRight)) {
+                if (igMenuItem_Bool("Remove Component", nullptr, false, true)) {
+                    world_remove_component(world, ent, c_plat_col);
+                }
+                igEndPopup();
+            }
+            if (header_open) {
+                float size[2] = { col->width, col->height };
+                if (igDragFloat2("Size", size, 0.05f, 0.01f, 100.0f, "%.2f", 0)) {
+                    col->width = size[0];
+                    col->height = size[1];
+                }
+                float offset[2] = { col->offset_x, col->offset_y };
+                if (igDragFloat2("Offset", offset, 0.05f, -50.0f, 50.0f, "%.2f", 0)) {
+                    col->offset_x = offset[0];
+                    col->offset_y = offset[1];
+                }
+                igCheckbox("Is Solid", &col->is_solid);
+            }
+        }
+    }
+
     // ---- Hierarchy info ---------------------------------------------------
     Hierarchy *hier = (Hierarchy *)world_get_component(
         world, ent, hctx->c_hierarchy);
@@ -879,6 +968,66 @@ void panel_inspector_render(bool *p_open,
                     slot->instance_ref = LUA_NOREF;
                     sc->count++;
                 }
+            }
+        }
+
+        // ---- Platformer Components Context Menu ---------------------------
+        bool has_plat_ctrl = false;
+        ComponentId c_menu_plat_ctrl = platformer_controller_get_id();
+        if (c_menu_plat_ctrl != UINT8_MAX) {
+            has_plat_ctrl = world_has_component(world, ent, c_menu_plat_ctrl);
+        }
+
+        bool has_plat_col = false;
+        ComponentId c_menu_plat_col = platformer_collider_get_id();
+        if (c_menu_plat_col != UINT8_MAX) {
+            has_plat_col = world_has_component(world, ent, c_menu_plat_col);
+        }
+
+        if (c_menu_plat_ctrl != UINT8_MAX) {
+            if (igMenuItem_Bool("Platformer Controller", nullptr, false, !has_plat_ctrl)) {
+                PlatformerController ctrl_val = {
+                    .gravity = 30.0f,
+                    .max_fall_speed = 25.0f,
+                    .run_speed = 8.0f,
+                    .run_acceleration = 50.0f,
+                    .run_deceleration = 50.0f,
+                    .jump_force = 12.0f,
+                    .jump_cut_gravity_mult = 2.0f,
+                    .coyote_time = 0.15f,
+                    .jump_buffer_time = 0.1f,
+                    .max_jumps = 1,
+                    .dash_speed = 20.0f,
+                    .dash_duration = 0.2f,
+                    .dash_cooldown = 0.6f,
+                    .wall_slide_speed = 3.0f,
+                    .wall_jump_force_x = 8.0f,
+                    .wall_jump_force_y = 12.0f,
+                    .wall_jump_control_lock = 0.15f,
+                    .key_left = 65,  // KEY_A
+                    .key_right = 68, // KEY_D
+                    .key_jump = 32,  // KEY_SPACE
+                    .key_dash = 340, // KEY_LEFT_SHIFT
+                    .enable_double_jump = true,
+                    .enable_wall_jump = true,
+                    .enable_dash = true,
+                    .facing_dir = 1,
+                    .can_dash = true,
+                };
+                world_add_component(world, ent, c_menu_plat_ctrl, &ctrl_val);
+            }
+        }
+
+        if (c_menu_plat_col != UINT8_MAX) {
+            if (igMenuItem_Bool("Platformer Collider", nullptr, false, !has_plat_col)) {
+                PlatformerCollider col_val = {
+                    .width = 1.0f,
+                    .height = 1.0f,
+                    .offset_x = 0.0f,
+                    .offset_y = 0.0f,
+                    .is_solid = true
+                };
+                world_add_component(world, ent, c_menu_plat_col, &col_val);
             }
         }
 

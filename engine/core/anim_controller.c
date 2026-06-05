@@ -183,6 +183,17 @@ bool anim_controller_load(const char *path, AnimController *out) {
                 state->speed = (float)speed_j->valuedouble;
             }
 
+            // Editor node position (optional — auto-layout if missing).
+            cJSON *ex_j = cJSON_GetObjectItemCaseSensitive(s, "editor_x");
+            cJSON *ey_j = cJSON_GetObjectItemCaseSensitive(s, "editor_y");
+            if (cJSON_IsNumber(ex_j) && cJSON_IsNumber(ey_j)) {
+                state->editor_x = (float)ex_j->valuedouble;
+                state->editor_y = (float)ey_j->valuedouble;
+            } else {
+                state->editor_x = (float)(out->state_count % 4) * 220.0f;
+                state->editor_y = (float)(out->state_count / 4) * 160.0f;
+            }
+
             // Transitions.
             cJSON *trans_j = cJSON_GetObjectItemCaseSensitive(s, "transitions");
             state->transition_count = 0;
@@ -371,6 +382,8 @@ bool anim_controller_save(const AnimController *ctrl, const char *path) {
         cJSON_AddStringToObject(sobj, "name", s->name);
         cJSON_AddStringToObject(sobj, "clip", s->clip_name);
         cJSON_AddNumberToObject(sobj, "speed", (double)s->speed);
+        cJSON_AddNumberToObject(sobj, "editor_x", (double)s->editor_x);
+        cJSON_AddNumberToObject(sobj, "editor_y", (double)s->editor_y);
 
         // Transitions.
         cJSON *trans = cJSON_AddArrayToObject(sobj, "transitions");

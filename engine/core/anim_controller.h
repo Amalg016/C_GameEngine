@@ -81,6 +81,10 @@ typedef struct AnimState {
     float          speed;                     // playback speed multiplier
     AnimTransition transitions[AnimCtrlMaxTransitions];
     uint32_t       transition_count;
+
+    // Editor-only: node position on canvas (not used at runtime).
+    float          editor_x;
+    float          editor_y;
 } AnimState;
 
 /// The full controller asset — loaded from a .controller.meta JSON file.

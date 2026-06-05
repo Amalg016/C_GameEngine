@@ -34,6 +34,7 @@ SRC_ENGINE := engine/renderer/renderer.c \
               engine/core/animation.c \
               engine/core/anim_cache.c \
               engine/core/anim_controller.c \
+              engine/core/platformer_controller.c \
               engine/core/ecs/component_pool.c \
               engine/core/ecs/world.c \
               engine/core/ecs/hierarchy.c \

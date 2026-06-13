@@ -248,7 +248,7 @@ static void editor_render_dockspace(Editor *editor) {
                     igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
                 }
 
-                if (igButton("\xe2\x96\xb6", (ImVec2){BtnSizeX, BtnSizeY}) && enabled) {
+                if (igButton(">", (ImVec2){BtnSizeX, BtnSizeY}) && enabled) {
                     engine_set_play_state(editor->engine, PLAY_STATE_PLAYING);
                 }
                 if (igIsItemHovered(0)) {
@@ -275,7 +275,7 @@ static void editor_render_dockspace(Editor *editor) {
                     igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
                 }
 
-                if (igButton("\xe2\x8f\xb8", (ImVec2){BtnSizeX, BtnSizeY}) && can_pause) {
+                if (igButton("||", (ImVec2){BtnSizeX, BtnSizeY}) && can_pause) {
                     if (state == PLAY_STATE_PLAYING) {
                         engine_set_play_state(editor->engine, PLAY_STATE_PAUSED);
                     } else {
@@ -304,7 +304,7 @@ static void editor_render_dockspace(Editor *editor) {
                     igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
                 }
 
-                if (igButton("\xe2\x8f\xb9", (ImVec2){BtnSizeX, BtnSizeY}) && can_stop) {
+                if (igButton("[]", (ImVec2){BtnSizeX, BtnSizeY}) && can_stop) {
                     engine_set_play_state(editor->engine, PLAY_STATE_EDITING);
                 }
                 if (igIsItemHovered(0)) {

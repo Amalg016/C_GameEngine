@@ -114,7 +114,7 @@ void panel_game_view_render(bool *p_open, Renderer *renderer,
     // --- Play-state overlay badge (top-right corner) -----------------------
     if (play_state == PLAY_STATE_PLAYING || play_state == PLAY_STATE_PAUSED) {
         const char *label  = (play_state == PLAY_STATE_PLAYING)
-                             ? "\xe2\x96\xb6 Playing" : "\xe2\x8f\xb8 Paused";
+                             ? "> Playing" : "|| Paused";
         ImVec4 badge_color = (play_state == PLAY_STATE_PLAYING)
                              ? (ImVec4){0.15f, 0.55f, 0.25f, 0.85f}
                              : (ImVec4){0.65f, 0.55f, 0.1f, 0.85f};

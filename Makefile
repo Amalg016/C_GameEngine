@@ -89,7 +89,7 @@ SRC_BRIDGE := engine/editor/ui/imgui_vulkan_bridge.cpp
 
 BUILD_DIR := build
 
-.PHONY: all vulkan opengl editor web shaders clean
+.PHONY: all vulkan opengl editor web shaders clean test
 
 all: editor
 
@@ -199,6 +199,27 @@ shaders/%.vert.spv: shaders/%.vert
 shaders/%.frag.spv: shaders/%.frag
 	$(GLSLC) $< -o $@
 	@echo "[shader] $< → $@"
+
+# ---- Tests -----------------------------------------------------------------
+
+SRC_TEST    := tests/main.c \
+               tests/test_math.c \
+               tests/test_ecs.c \
+               tests/test_asset_manager.c \
+               tests/test_clock.c \
+               engine/core/ecs/component_pool.c \
+               engine/core/ecs/world.c \
+               engine/core/ecs/hierarchy.c \
+               engine/core/clock.c \
+               engine/core/asset_manager.c
+
+TEST_BIN    := $(BUILD_DIR)/test_runner
+
+test: $(SRC_TEST)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I. -o $(TEST_BIN) $(SRC_TEST) -lm
+	@echo "[build] $(TEST_BIN) ready"
+	@./$(TEST_BIN)
 
 # ---- Clean ------------------------------------------------------------------
 

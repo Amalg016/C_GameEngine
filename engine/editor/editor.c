@@ -19,7 +19,6 @@
 #include "panels/panel_console.h"
 #include "panels/panel_game_view.h"
 #include "panels/panel_scene_view.h"
-#include "panels/panel_toolbar.h"
 #include "panels/panel_sprite_editor.h"
 #include "panels/panel_animation_editor.h"
 #include "panels/panel_controller_editor.h"
@@ -220,6 +219,113 @@ static void editor_render_dockspace(Editor *editor) {
             igEndMenu();
         }
 
+        // ---- Toolbar buttons centered in the main menu bar ----------------
+        {
+            PlayState state = engine_get_play_state(editor->engine);
+            constexpr float BtnSizeX = 24.0f;
+            constexpr float BtnSizeY = 17.0f;
+            constexpr float BtnGap   = 4.0f;
+            float total_w = BtnSizeX * 3.0f + BtnGap * 2.0f;
+            float win_w = igGetWindowWidth();
+            float offset = (win_w - total_w) * 0.5f;
+
+            float prev_cursor_x = igGetCursorPosX();
+            if (offset > prev_cursor_x) {
+                igSetCursorPosX(offset);
+            }
+
+            // Play button (▶)
+            {
+                bool enabled = (state != PLAY_STATE_PLAYING);
+                if (enabled) {
+                    igPushStyleColor_Vec4(ImGuiCol_Button,        (ImVec4){0.2f, 0.7f, 0.2f, 1.0f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonHovered,  (ImVec4){0.3f, 0.8f, 0.3f, 1.0f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonActive,   (ImVec4){0.15f, 0.6f, 0.15f, 1.0f});
+                } else {
+                    igPushStyleColor_Vec4(ImGuiCol_Button,        (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonHovered,  (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonActive,   (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
+                }
+
+                if (igButton("\xe2\x96\xb6", (ImVec2){BtnSizeX, BtnSizeY}) && enabled) {
+                    engine_set_play_state(editor->engine, PLAY_STATE_PLAYING);
+                }
+                if (igIsItemHovered(0)) {
+                    igSetTooltip(enabled ? "Play (Ctrl+R)" : "Already playing");
+                }
+                igPopStyleColor(enabled ? 3 : 4);
+            }
+
+            igSameLine(0, BtnGap);
+
+            // Pause button (⏸)
+            {
+                bool can_pause = (state == PLAY_STATE_PLAYING || state == PLAY_STATE_PAUSED);
+                if (can_pause) {
+                    bool is_paused = (state == PLAY_STATE_PAUSED);
+                    ImVec4 base = is_paused ? (ImVec4){0.9f, 0.8f, 0.2f, 1.0f} : (ImVec4){0.8f, 0.7f, 0.1f, 1.0f};
+                    igPushStyleColor_Vec4(ImGuiCol_Button,        base);
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonHovered,  (ImVec4){0.9f, 0.8f, 0.2f, 1.0f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonActive,   (ImVec4){0.7f, 0.6f, 0.05f, 1.0f});
+                } else {
+                    igPushStyleColor_Vec4(ImGuiCol_Button,        (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonHovered,  (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonActive,   (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
+                }
+
+                if (igButton("\xe2\x8f\xb8", (ImVec2){BtnSizeX, BtnSizeY}) && can_pause) {
+                    if (state == PLAY_STATE_PLAYING) {
+                        engine_set_play_state(editor->engine, PLAY_STATE_PAUSED);
+                    } else {
+                        engine_set_play_state(editor->engine, PLAY_STATE_PLAYING);
+                    }
+                }
+                if (igIsItemHovered(0)) {
+                    igSetTooltip(can_pause ? "Pause / Resume" : "Not playing");
+                }
+                igPopStyleColor(can_pause ? 3 : 4);
+            }
+
+            igSameLine(0, BtnGap);
+
+            // Stop button (⏹)
+            {
+                bool can_stop = (state != PLAY_STATE_EDITING);
+                if (can_stop) {
+                    igPushStyleColor_Vec4(ImGuiCol_Button,        (ImVec4){0.7f, 0.2f, 0.2f, 1.0f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonHovered,  (ImVec4){0.8f, 0.3f, 0.3f, 1.0f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonActive,   (ImVec4){0.6f, 0.15f, 0.15f, 1.0f});
+                } else {
+                    igPushStyleColor_Vec4(ImGuiCol_Button,        (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonHovered,  (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonActive,   (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
+                }
+
+                if (igButton("\xe2\x8f\xb9", (ImVec2){BtnSizeX, BtnSizeY}) && can_stop) {
+                    engine_set_play_state(editor->engine, PLAY_STATE_EDITING);
+                }
+                if (igIsItemHovered(0)) {
+                    igSetTooltip(can_stop ? "Stop (Ctrl+R)" : "Not playing");
+                }
+                igPopStyleColor(can_stop ? 3 : 4);
+            }
+
+            igSetCursorPosX(prev_cursor_x);
+
+            // Keyboard shortcut (Ctrl+R)
+            ImGuiIO *io = igGetIO_Nil();
+            if (!io->WantTextInput && io->KeyCtrl && igIsKeyPressed_Bool(ImGuiKey_R, false)) {
+                if (state == PLAY_STATE_EDITING) {
+                    engine_set_play_state(editor->engine, PLAY_STATE_PLAYING);
+                } else {
+                    engine_set_play_state(editor->engine, PLAY_STATE_EDITING);
+                }
+            }
+        }
+
         igEndMenuBar();
     }
 
@@ -235,12 +341,11 @@ void editor_begin_frame(Editor *editor) {
 
     imgui_layer_begin_frame();
 
+    PlayState prev_state = engine_get_play_state(editor->engine);
+
     // Dockspace + menu bar.
     editor_render_dockspace(editor);
 
-    // ---- Toolbar (Play / Pause / Stop) ------------------------------------
-    PlayState prev_state = engine_get_play_state(editor->engine);
-    panel_toolbar_render(editor->engine);
     PlayState curr_state = engine_get_play_state(editor->engine);
 
     // Auto-open Game View when entering Play mode.

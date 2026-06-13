@@ -87,6 +87,12 @@ Engine *engine_create(const EngineConfig *config) {
 
     engine->fixed_hz = DefaultFixedHz;
 
+#ifdef EDITOR_BUILD
+    engine->play_state = PLAY_STATE_EDITING;
+#else
+    engine->play_state = PLAY_STATE_PLAYING;
+#endif
+
     // --- platform -----------------------------------------------------------
     engine->platform = platform_create(config->title,
                                        config->width,

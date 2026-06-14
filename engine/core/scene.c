@@ -495,48 +495,42 @@ bool scene_load(Engine *engine, const char *filepath) {
             cJSON *spr_json = cJSON_GetObjectItemCaseSensitive(comps, "sprite");
             if (spr_json != nullptr && c_sprite != UINT8_MAX) {
                 cJSON *tex_item = cJSON_GetObjectItemCaseSensitive(spr_json, "texture");
-                if (cJSON_IsString(tex_item)) {
-                    AssetHandle h = texmap_lookup(&texmap, tex_item->valuestring);
+                AssetHandle h = ASSET_HANDLE_INVALID;
+                const char *tex_path = cJSON_IsString(tex_item) ? tex_item->valuestring : nullptr;
+
+                if (tex_path != nullptr && strlen(tex_path) > 0) {
+                    h = texmap_lookup(&texmap, tex_path);
                     if (h == ASSET_HANDLE_INVALID) {
-                        // Texture wasn't in the manifest — try loading on the fly.
-                        h = asset_manager_load_texture(am, tex_item->valuestring);
+                        h = asset_manager_load_texture(am, tex_path);
                     } else {
-                        // Texture was preloaded by manifest, increment ref count for Sprite component ownership
                         asset_manager_add_ref(am, h);
                     }
+                }
+
+                if (tex_path != nullptr && strlen(tex_path) > 0 && h == ASSET_HANDLE_INVALID) {
+                    fprintf(stderr, "[scene] warning: sprite texture '%s' not found\n", tex_path);
+                } else {
+                    uint32_t tw = 0, th = 0;
                     if (h != ASSET_HANDLE_INVALID) {
-                        // Query texture dimensions for UV computation.
-                        uint32_t tw = 0, th = 0;
                         asset_manager_get_texture_size(am, h, &tw, &th);
-
-                        // Parse optional pixel rect for spritesheet slicing.
-                        cJSON *rect_json = cJSON_GetObjectItemCaseSensitive(
-                            spr_json, "rect");
-
-                        Sprite sprite;
-                        if (rect_json != nullptr) {
-                            Rect pixel_rect = {
-                                .x = (float)cJSON_GetNumberValue(
-                                    cJSON_GetObjectItemCaseSensitive(rect_json, "x")),
-                                .y = (float)cJSON_GetNumberValue(
-                                    cJSON_GetObjectItemCaseSensitive(rect_json, "y")),
-                                .w = (float)cJSON_GetNumberValue(
-                                    cJSON_GetObjectItemCaseSensitive(rect_json, "w")),
-                                .h = (float)cJSON_GetNumberValue(
-                                    cJSON_GetObjectItemCaseSensitive(rect_json, "h")),
-                            };
-                            sprite = sprite_from_sheet(h, tw, th, pixel_rect);
-                        } else {
-                            // No rect — use the full texture (backward compatible).
-                            sprite = sprite_from_texture(h, tw, th);
-                        }
-
-                        SceneSprite spr = { .sprite = sprite };
-                        world_add_component(world, live, c_sprite, &spr);
-                    } else {
-                        fprintf(stderr, "[scene] warning: sprite texture '%s' not found\n",
-                                tex_item->valuestring);
                     }
+
+                    cJSON *rect_json = cJSON_GetObjectItemCaseSensitive(spr_json, "rect");
+                    Sprite sprite;
+                    if (rect_json != nullptr && h != ASSET_HANDLE_INVALID) {
+                        Rect pixel_rect = {
+                            .x = (float)cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(rect_json, "x")),
+                            .y = (float)cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(rect_json, "y")),
+                            .w = (float)cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(rect_json, "w")),
+                            .h = (float)cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(rect_json, "h")),
+                        };
+                        sprite = sprite_from_sheet(h, tw, th, pixel_rect);
+                    } else {
+                        sprite = sprite_from_texture(h, tw, th);
+                    }
+
+                    SceneSprite spr = { .sprite = sprite };
+                    world_add_component(world, live, c_sprite, &spr);
                 }
             }
 

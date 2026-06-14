@@ -1,6 +1,6 @@
 {
 	"assets":	{
-		"textures":	["assets/images/Run.png", "assets/images/file.png"]
+		"textures":	["assets/images/Run.png"]
 	},
 	"entities":	[{
 			"id":	1,
@@ -88,13 +88,7 @@
 					"sy":	0.5
 				},
 				"sprite":	{
-					"texture":	"assets/images/file.png",
-					"rect":	{
-						"x":	0,
-						"y":	0,
-						"w":	1920,
-						"h":	1920
-					}
+					"texture":	""
 				}
 			}
 		}, {
@@ -107,13 +101,7 @@
 					"sy":	0.6
 				},
 				"sprite":	{
-					"texture":	"assets/images/file.png",
-					"rect":	{
-						"x":	0,
-						"y":	0,
-						"w":	1920,
-						"h":	1920
-					}
+					"texture":	""
 				},
 				"platformer_collider": {
 					"width": 1.0,
@@ -133,13 +121,7 @@
 					"sy":	7.0
 				},
 				"sprite":	{
-					"texture":	"assets/images/file.png",
-					"rect":	{
-						"x":	0,
-						"y":	0,
-						"w":	1920,
-						"h":	1920
-					}
+					"texture":	""
 				},
 				"platformer_collider": {
 					"width": 1.0,
@@ -159,13 +141,7 @@
 					"sy":	7.0
 				},
 				"sprite":	{
-					"texture":	"assets/images/file.png",
-					"rect":	{
-						"x":	0,
-						"y":	0,
-						"w":	1920,
-						"h":	1920
-					}
+					"texture":	""
 				},
 				"platformer_collider": {
 					"width": 1.0,
@@ -185,13 +161,7 @@
 					"sy":	0.4
 				},
 				"sprite":	{
-					"texture":	"assets/images/file.png",
-					"rect":	{
-						"x":	0,
-						"y":	0,
-						"w":	1920,
-						"h":	1920
-					}
+					"texture":	""
 				},
 				"platformer_collider": {
 					"width": 1.0,

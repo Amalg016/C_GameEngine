@@ -14,19 +14,16 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef struct World            World;
-typedef struct HierarchyContext HierarchyContext;
+typedef struct Engine           Engine;
 
 /// Render the scene hierarchy panel.
 ///
 /// `p_open`          — visibility flag.
-/// `world`           — the ECS world to iterate.
-/// `hctx`            — hierarchy context (for component IDs).
+/// `engine`          — the active engine.
 /// `selected_entity` — in/out: currently selected entity index.
 /// `has_selection`    — in/out: true if any entity is selected.
 void panel_hierarchy_render(bool *p_open,
-                            World *world,
-                            const HierarchyContext *hctx,
+                            Engine *engine,
                             uint32_t *selected_entity,
                             bool *has_selection);
 

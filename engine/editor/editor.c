@@ -481,7 +481,7 @@ void editor_begin_frame(Editor *editor) {
 
     if (editor->show_hierarchy) {
         panel_hierarchy_render(&editor->show_hierarchy,
-                               world, hctx,
+                               editor->engine,
                                &editor->selected_entity,
                                &editor->has_selection);
     }
@@ -516,7 +516,8 @@ void editor_begin_frame(Editor *editor) {
         Renderer *rend = engine_get_renderer(editor->engine);
         uint32_t fb_w = 800, fb_h = 600;
         platform_get_framebuffer_size(plat, &fb_w, &fb_h);
-        if (panel_scene_view_render(&editor->show_scene_view, editor->engine, rend, fb_w, fb_h)) {
+        if (panel_scene_view_render(&editor->show_scene_view, editor->engine, rend, fb_w, fb_h,
+                                    &editor->selected_entity, &editor->has_selection)) {
             editor->has_selection = false;
             editor->selected_entity = 0;
         }

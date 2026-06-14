@@ -22,7 +22,15 @@ typedef struct Renderer Renderer;
 /// `engine`   — the active engine.
 /// `renderer` — the active renderer.
 /// `fb_w`, `fb_h` — current framebuffer dimensions (for display).
-bool panel_scene_view_render(bool *p_open, Engine *engine, Renderer *renderer, uint32_t fb_w, uint32_t fb_h);
+/// `selected_entity` — in/out: selected entity index.
+/// `has_selection`    — in/out: selection flag.
+bool panel_scene_view_render(bool *p_open,
+                             Engine *engine,
+                             Renderer *renderer,
+                             uint32_t fb_w,
+                             uint32_t fb_h,
+                             uint32_t *selected_entity,
+                             bool *has_selection);
 
 /// Returns true if the scene view panel is currently focused.
 bool panel_scene_view_is_focused(void);

@@ -137,7 +137,7 @@ make clean
   * **`platform/`** — Platform-specific OS layer and GLFW window context handler.
 * **`shaders/`** — GLSL vertex and fragment shader source files.
 * **`scripts/`** — Lua scripting files for entities and player controllers.
-* **`scenes/`** — Scene files serialized in JSON format.
+* **`assets/`** — Asset resources (textures, animations, metadata, and scene files).
 * **`third_party/`** — External dependencies (cimgui/ImGui, cJSON, stb_image).
 
 ---

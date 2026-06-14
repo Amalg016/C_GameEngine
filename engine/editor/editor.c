@@ -24,6 +24,7 @@
 #include "panels/panel_sprite_editor.h"
 #include "panels/panel_animation_editor.h"
 #include "panels/panel_controller_editor.h"
+#include "panels/panel_scene_list.h"
 
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include "cimgui.h"
@@ -50,6 +51,7 @@ struct Editor {
     bool show_animation_editor;
     bool show_controller_editor;
     bool show_demo_window;
+    bool show_scene_list;
 
     // Shared selection state (hierarchy ↔ inspector).
     uint32_t selected_entity;
@@ -108,6 +110,7 @@ Editor *editor_create(Engine *engine) {
         .show_animation_editor = false,
         .show_controller_editor = false,
         .show_demo_window      = false,
+        .show_scene_list       = true,
         .selected_entity       = 0,
         .has_selection         = false,
         .last_scene            = nullptr,
@@ -239,6 +242,8 @@ static void editor_render_dockspace(Editor *editor) {
                                &editor->show_scene_view, true);
             igMenuItem_BoolPtr("Game View",      nullptr,
                                &editor->show_game_view, true);
+            igMenuItem_BoolPtr("Scene List Manager", nullptr,
+                               &editor->show_scene_list, true);
             igSeparator();
             igMenuItem_BoolPtr("Sprite Editor",  nullptr,
                                &editor->show_sprite_editor, true);
@@ -498,6 +503,10 @@ void editor_begin_frame(Editor *editor) {
 
     if (editor->show_console) {
         panel_console_render(&editor->show_console);
+    }
+
+    if (editor->show_scene_list) {
+        panel_scene_list_render(&editor->show_scene_list, editor->engine);
     }
 
     // ---- Scene View (always-on editor viewport) ---------------------------

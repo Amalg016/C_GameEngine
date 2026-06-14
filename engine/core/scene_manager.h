@@ -78,4 +78,18 @@ void scene_manager_set_current_index(SceneManager *sm, int32_t index);
 /// Returns -1 if not found.
 int32_t scene_manager_find_scene(const SceneManager *sm, const char *scene_path);
 
+// --- Modification & Persistence --------------------------------------------
+
+/// Remove a scene from the list by index.  Frees the stored path.
+/// Adjusts current_index if needed. Returns true on success.
+bool scene_manager_remove_scene(SceneManager *sm, uint32_t index);
+
+/// Swap two scene paths in the list.  Adjusts current_index if needed.
+/// Returns true on success.
+bool scene_manager_swap_scenes(SceneManager *sm, uint32_t idx_a, uint32_t idx_b);
+
+/// Save the current scene list back to a JSON manifest file.
+/// Returns true on success.
+bool scene_manager_save_manifest(const SceneManager *sm, const char *manifest_path);
+
 #endif // ENGINE_CORE_SCENE_MANAGER_H

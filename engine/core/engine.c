@@ -609,6 +609,11 @@ bool engine_load_scene_manifest(Engine *engine, const char *manifest_path) {
     return scene_manager_load_manifest(engine->scene_manager, manifest_path);
 }
 
+bool engine_save_scene_manifest(Engine *engine, const char *manifest_path) {
+    if (engine == nullptr || manifest_path == nullptr) return false;
+    return scene_manager_save_manifest(engine->scene_manager, manifest_path);
+}
+
 bool engine_next_scene(Engine *engine) {
     if (engine == nullptr) return false;
 

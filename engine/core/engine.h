@@ -169,6 +169,10 @@ SceneManager *engine_get_scene_manager(Engine *engine);
 /// Must be called before using scene navigation APIs.
 bool engine_load_scene_manifest(Engine *engine, const char *manifest_path);
 
+/// Save the current scene list back to the manifest.
+/// Returns true on success.
+bool engine_save_scene_manifest(Engine *engine, const char *manifest_path);
+
 /// Navigate to the next scene in the manifest order.
 /// Returns true on success, false if already at the last scene or no manifest.
 bool engine_next_scene(Engine *engine);

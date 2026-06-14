@@ -207,3 +207,83 @@ int32_t scene_manager_find_scene(const SceneManager *sm, const char *scene_path)
     }
     return -1;
 }
+
+// ---------------------------------------------------------------------------
+// Modification & Persistence
+// ---------------------------------------------------------------------------
+
+bool scene_manager_remove_scene(SceneManager *sm, uint32_t index) {
+    if (sm == nullptr || index >= sm->count) return false;
+
+    int32_t cur = sm->current_index;
+
+    free(sm->scene_paths[index]);
+
+    // Shift paths down
+    for (uint32_t i = index; i < sm->count - 1; ++i) {
+        sm->scene_paths[i] = sm->scene_paths[i + 1];
+    }
+    sm->scene_paths[sm->count - 1] = nullptr;
+    sm->count--;
+
+    // Adjust current_index if needed
+    if (cur == (int32_t)index) {
+        sm->current_index = -1;
+    } else if (cur > (int32_t)index) {
+        sm->current_index = cur - 1;
+    }
+
+    return true;
+}
+
+bool scene_manager_swap_scenes(SceneManager *sm, uint32_t idx_a, uint32_t idx_b) {
+    if (sm == nullptr || idx_a >= sm->count || idx_b >= sm->count) return false;
+    if (idx_a == idx_b) return true;
+
+    char *temp = sm->scene_paths[idx_a];
+    sm->scene_paths[idx_a] = sm->scene_paths[idx_b];
+    sm->scene_paths[idx_b] = temp;
+
+    int32_t cur = sm->current_index;
+    if (cur == (int32_t)idx_a) {
+        sm->current_index = (int32_t)idx_b;
+    } else if (cur == (int32_t)idx_b) {
+        sm->current_index = (int32_t)idx_a;
+    }
+
+    return true;
+}
+
+bool scene_manager_save_manifest(const SceneManager *sm, const char *manifest_path) {
+    if (sm == nullptr || manifest_path == nullptr) return false;
+
+    cJSON *root = cJSON_CreateObject();
+    if (root == nullptr) return false;
+
+    cJSON *scenes = cJSON_CreateArray();
+    if (scenes == nullptr) {
+        cJSON_Delete(root);
+        return false;
+    }
+    cJSON_AddItemToObject(root, "scenes", scenes);
+
+    for (uint32_t i = 0; i < sm->count; ++i) {
+        cJSON_AddItemToArray(scenes, cJSON_CreateString(sm->scene_paths[i]));
+    }
+
+    char *rendered = cJSON_Print(root);
+    cJSON_Delete(root);
+
+    if (rendered == nullptr) return false;
+
+    FILE *f = fopen(manifest_path, "w");
+    if (f == nullptr) {
+        free(rendered);
+        return false;
+    }
+
+    fputs(rendered, f);
+    fclose(f);
+    free(rendered);
+    return true;
+}

@@ -34,6 +34,19 @@ bool imgui_layer_init(void *glfw_window, const ImGuiBridgeInitInfo *info) {
 
     ImGuiIO *io = igGetIO_Nil();
 
+    // ---- Load Fonts -------------------------------------------------------
+    ImFontAtlas *fonts = io->Fonts;
+    static const ImWchar ranges[] = {
+        0x0020, 0x00FF, // Basic Latin & Latin Supplement
+        0x0100, 0x024F, // Latin Extended-A & B
+        0xF000, 0xF8FF, // Private Use Area (Nerd Font icons)
+        0
+    };
+    ImFont *main_font = ImFontAtlas_AddFontFromFileTTF(fonts, "engine/editor/fonts/JetBrainsMonoNerdFont-Regular.ttf", 15.0f, nullptr, ranges);
+    if (main_font == nullptr) {
+        fprintf(stderr, "[imgui_layer] Warning: failed to load JetBrainsMonoNerdFont-Regular.ttf, using default font\n");
+    }
+
     // Enable docking.
     io->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 

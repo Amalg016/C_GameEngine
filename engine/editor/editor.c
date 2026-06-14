@@ -294,7 +294,7 @@ static void editor_render_dockspace(Editor *editor) {
             uint32_t scene_count = scene_manager_get_count(sm);
 
             constexpr float BtnSizeX = 24.0f;
-            constexpr float BtnSizeY = 17.0f;
+            constexpr float BtnSizeY = 24.0f;
             constexpr float BtnGap   = 4.0f;
             float total_w = BtnSizeX * 5.0f + BtnGap * 4.0f;
             float win_w = igGetWindowWidth();
@@ -305,7 +305,7 @@ static void editor_render_dockspace(Editor *editor) {
                 igSetCursorPosX(offset);
             }
 
-            // Prev Scene button (|<)
+            // Prev Scene button (⏮)
             {
                 bool enabled = (current_idx > 0);
                 if (enabled) {
@@ -319,7 +319,7 @@ static void editor_render_dockspace(Editor *editor) {
                     igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
                 }
 
-                if (igButton("|<", (ImVec2){BtnSizeX, BtnSizeY}) && enabled) {
+                if (igButton("\xef\x81\x88", (ImVec2){BtnSizeX, BtnSizeY}) && enabled) {
                     engine_previous_scene(editor->engine);
                 }
                 if (igIsItemHovered(0)) {
@@ -344,7 +344,7 @@ static void editor_render_dockspace(Editor *editor) {
                     igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
                 }
 
-                if (igButton(">", (ImVec2){BtnSizeX, BtnSizeY}) && enabled) {
+                if (igButton("\xef\x81\x8b", (ImVec2){BtnSizeX, BtnSizeY}) && enabled) {
                     engine_set_play_state(editor->engine, PLAY_STATE_PLAYING);
                 }
                 if (igIsItemHovered(0)) {
@@ -371,7 +371,7 @@ static void editor_render_dockspace(Editor *editor) {
                     igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
                 }
 
-                if (igButton("||", (ImVec2){BtnSizeX, BtnSizeY}) && can_pause) {
+                if (igButton("\xef\x81\x8c", (ImVec2){BtnSizeX, BtnSizeY}) && can_pause) {
                     if (state == PLAY_STATE_PLAYING) {
                         engine_set_play_state(editor->engine, PLAY_STATE_PAUSED);
                     } else {
@@ -400,7 +400,7 @@ static void editor_render_dockspace(Editor *editor) {
                     igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
                 }
 
-                if (igButton("[]", (ImVec2){BtnSizeX, BtnSizeY}) && can_stop) {
+                if (igButton("\xef\x81\x8d", (ImVec2){BtnSizeX, BtnSizeY}) && can_stop) {
                     engine_set_play_state(editor->engine, PLAY_STATE_EDITING);
                 }
                 if (igIsItemHovered(0)) {
@@ -411,7 +411,7 @@ static void editor_render_dockspace(Editor *editor) {
 
             igSameLine(0, BtnGap);
 
-            // Next Scene button (>|)
+            // Next Scene button (⏭)
             {
                 bool enabled = (current_idx >= 0 && (uint32_t)current_idx < scene_count - 1);
                 if (enabled) {
@@ -425,7 +425,7 @@ static void editor_render_dockspace(Editor *editor) {
                     igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
                 }
 
-                if (igButton(">|", (ImVec2){BtnSizeX, BtnSizeY}) && enabled) {
+                if (igButton("\xef\x81\x91", (ImVec2){BtnSizeX, BtnSizeY}) && enabled) {
                     engine_next_scene(editor->engine);
                 }
                 if (igIsItemHovered(0)) {

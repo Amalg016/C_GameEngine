@@ -112,7 +112,7 @@ static void render_sprite_sub_items(const char *full_path,
 
         // Label: "  sprite_name  (32x32)"
         char label[256];
-        snprintf(label, sizeof(label), "    \xf0\x9f\x96\xbc %s  (%.0fx%.0f)",
+        snprintf(label, sizeof(label), "    \xef\x80\xbe %s  (%.0fx%.0f)",
                  reg->name, reg->rect.w, reg->rect.h);
 
         // Unique ID to avoid collisions with other items.
@@ -179,7 +179,7 @@ static bool render_entry(const char *name, const char *full_path,
     if (dir_entry) {
         // ---- Directory entry --------------------------------------------------
         char label[PathMaxLen];
-        snprintf(label, PathMaxLen, "\xf0\x9f\x93\x81 %s", name);
+        snprintf(label, PathMaxLen, "\xef\x81\xbb %s", name);
 
         if (igSelectable_Bool(label, false, 0, (ImVec2){ 0, 0 })) {
             // Single click.
@@ -193,7 +193,7 @@ static bool render_entry(const char *name, const char *full_path,
     } else if (has_meta) {
         // ---- Image with sprite meta — expandable tree node --------------------
         char label[PathMaxLen];
-        snprintf(label, PathMaxLen, "\xf0\x9f\x96\xbc %s", name);
+        snprintf(label, PathMaxLen, "\xef\x80\xbe %s", name);
 
         ImGuiTreeNodeFlags flags =
             ImGuiTreeNodeFlags_OpenOnArrow |
@@ -223,7 +223,7 @@ static bool render_entry(const char *name, const char *full_path,
                     for (uint32_t c = 0; c < anim_data.clip_count; ++c) {
                         char clip_label[256];
                         snprintf(clip_label, sizeof(clip_label),
-                                 "    \xf0\x9f\x8e\xac %s  (%u frames)",
+                                 "    \xef\x80\x88 %s  (%u frames)",
                                  anim_data.clips[c].name,
                                  anim_data.clips[c].frame_count);
 
@@ -250,7 +250,7 @@ static bool render_entry(const char *name, const char *full_path,
                         igPushID_Int(5000);
                         char ctrl_label[256];
                         snprintf(ctrl_label, sizeof(ctrl_label),
-                                 "    \xf0\x9f\x8e\xae Controller  "
+                                 "    \xef\x84\x9b Controller  "
                                  "(%u states, %u params)",
                                  ctrl_data.state_count,
                                  ctrl_data.param_count);
@@ -274,9 +274,9 @@ static bool render_entry(const char *name, const char *full_path,
         // ---- Regular file entry -----------------------------------------------
         char label[PathMaxLen];
         if (is_controller_meta_file(name)) {
-            snprintf(label, PathMaxLen, "    \xf0\x9f\x8e\xae %s", name);
+            snprintf(label, PathMaxLen, "    \xef\x84\x9b %s", name);
         } else if (has_suffix(name, ".json")) {
-            snprintf(label, PathMaxLen, "    \xf0\x9f\x8e\xac %s", name);
+            snprintf(label, PathMaxLen, "    \xef\x80\x88 %s", name);
         } else {
             snprintf(label, PathMaxLen, "    %s", name);
         }

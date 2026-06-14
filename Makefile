@@ -12,11 +12,12 @@
 
 CC        := gcc
 CFLAGS    := -std=c23 -Wall -Wextra -Wpedantic -Ithird_party \
+              -DIMGUI_USE_WCHAR32 \
               $(shell pkg-config --cflags lua5.4)
 LDFLAGS   :=
 
 CXX       := g++
-CXXFLAGS  := -std=c++11 -O2 -Wall -Wextra \
+CXXFLAGS  := -std=c++11 -O2 -Wall -Wextra -DIMGUI_USE_WCHAR32 \
               -Ithird_party/cimgui \
               -Ithird_party/cimgui/imgui \
               -Ithird_party/cimgui/imgui/backends

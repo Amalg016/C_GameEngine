@@ -469,9 +469,10 @@ void editor_begin_frame(Editor *editor) {
 
     PlayState curr_state = engine_get_play_state(editor->engine);
 
-    // Auto-open Game View when entering Play mode.
+    // Auto-open and focus Game View when entering Play mode.
     if (prev_state == PLAY_STATE_EDITING && curr_state != PLAY_STATE_EDITING) {
         editor->show_game_view = true;
+        igSetWindowFocus_Str("Game View");
     }
 
     // ---- Panels -----------------------------------------------------------
@@ -680,7 +681,7 @@ void editor_save_meta(Editor *editor, const char *scene_path) {
     cJSON *root = cJSON_CreateObject();
     if (root == nullptr) return;
 
-    cJSON_AddStringToObject(root, "last_scene", scene_path);
+    cJSON_AddStringToObject(root, "last_scene", new_scene);
     char *rendered = cJSON_Print(root);
     cJSON_Delete(root);
 

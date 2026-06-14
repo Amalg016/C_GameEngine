@@ -525,14 +525,14 @@ bool engine_load_scene(Engine *engine, const char *filepath) {
     engine->current_scene = new_scene;
 
     // Sync scene manager index.
-    int32_t idx = scene_manager_find_scene(engine->scene_manager, filepath);
+    int32_t idx = scene_manager_find_scene(engine->scene_manager, new_scene);
     if (idx >= 0) {
         scene_manager_set_current_index(engine->scene_manager, idx);
     }
 
 #ifdef EDITOR_BUILD
     if (engine->editor != nullptr) {
-        editor_save_meta(engine->editor, filepath);
+        editor_save_meta(engine->editor, new_scene);
     }
 #endif
 
@@ -580,14 +580,14 @@ bool engine_switch_scene(Engine *engine, const char *filepath) {
     engine->current_scene = new_scene;
 
     // Sync scene manager index.
-    int32_t s_idx = scene_manager_find_scene(engine->scene_manager, filepath);
+    int32_t s_idx = scene_manager_find_scene(engine->scene_manager, new_scene);
     if (s_idx >= 0) {
         scene_manager_set_current_index(engine->scene_manager, s_idx);
     }
 
 #ifdef EDITOR_BUILD
     if (engine->editor != nullptr) {
-        editor_save_meta(engine->editor, filepath);
+        editor_save_meta(engine->editor, new_scene);
     }
 #endif
 

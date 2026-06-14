@@ -4,7 +4,6 @@
 #include "../engine/core/sprite.h"
 #include "../engine/core/animation.h"
 #include "../engine/core/clock.h"
-#include "../engine/core/ecs/ecs.h"
 #include "../engine/core/input.h"
 #include "../engine/core/scripting/lua_host.h"
 #include "../engine/core/platformer_controller.h"

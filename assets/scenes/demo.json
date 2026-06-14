@@ -1,0 +1,205 @@
+{
+	"assets":	{
+		"textures":	["assets/images/Run.png", "assets/images/file.png"]
+	},
+	"entities":	[{
+			"id":	1,
+			"components":	{
+				"local_transform":	{
+					"x":	0,
+					"y":	0,
+					"sx":	1,
+					"sy":	1
+				},
+				"camera":	{
+					"projection":	"orthographic",
+					"fov":	0,
+					"near_plane":	-1,
+					"far_plane":	1,
+					"ortho_size":	5,
+					"is_active":	true
+				}
+			}
+		}, {
+			"id":	2,
+			"components":	{
+				"local_transform":	{
+					"x":	0,
+					"y":	-2,
+					"sx":	1.5,
+					"sy":	1.5
+				},
+				"sprite":	{
+					"texture":	"assets/images/Run.png",
+					"rect":	{
+						"x":	128,
+						"y":	0,
+						"w":	128,
+						"h":	128
+					}
+				},
+				"animator":	{
+					"controller":	"assets/images/PlayerController.controller.meta",
+					"clip":	"run",
+					"playing":	true
+				},
+				"platformer_controller": {
+					"gravity": 35.0,
+					"max_fall_speed": 25.0,
+					"run_speed": 7.0,
+					"run_acceleration": 60.0,
+					"run_deceleration": 60.0,
+					"jump_force": 13.0,
+					"jump_cut_gravity_mult": 2.2,
+					"coyote_time": 0.15,
+					"jump_buffer_time": 0.1,
+					"max_jumps": 2,
+					"dash_speed": 22.0,
+					"dash_duration": 0.18,
+					"dash_cooldown": 0.5,
+					"wall_slide_speed": 2.5,
+					"wall_jump_force_x": 9.0,
+					"wall_jump_force_y": 13.0,
+					"wall_jump_control_lock": 0.15,
+					"key_left": 65,
+					"key_right": 68,
+					"key_jump": 32,
+					"key_dash": 340,
+					"enable_double_jump": true,
+					"enable_wall_jump": true,
+					"enable_dash": true
+				},
+				"platformer_collider": {
+					"width": 0.8,
+					"height": 0.9,
+					"offset_x": 0.0,
+					"offset_y": 0.0,
+					"is_solid": true
+				}
+			}
+		}, {
+			"id":	3,
+			"parent":	2,
+			"components":	{
+				"local_transform":	{
+					"x":	2,
+					"y":	1.5,
+					"sx":	0.5,
+					"sy":	0.5
+				},
+				"sprite":	{
+					"texture":	"assets/images/file.png",
+					"rect":	{
+						"x":	0,
+						"y":	0,
+						"w":	1920,
+						"h":	1920
+					}
+				}
+			}
+		}, {
+			"id":	4,
+			"components":	{
+				"local_transform":	{
+					"x":	0,
+					"y":	3.5,
+					"sx":	12.0,
+					"sy":	0.6
+				},
+				"sprite":	{
+					"texture":	"assets/images/file.png",
+					"rect":	{
+						"x":	0,
+						"y":	0,
+						"w":	1920,
+						"h":	1920
+					}
+				},
+				"platformer_collider": {
+					"width": 1.0,
+					"height": 1.0,
+					"offset_x": 0.0,
+					"offset_y": 0.0,
+					"is_solid": true
+				}
+			}
+		}, {
+			"id":	5,
+			"components":	{
+				"local_transform":	{
+					"x":	-5.0,
+					"y":	0.0,
+					"sx":	0.8,
+					"sy":	7.0
+				},
+				"sprite":	{
+					"texture":	"assets/images/file.png",
+					"rect":	{
+						"x":	0,
+						"y":	0,
+						"w":	1920,
+						"h":	1920
+					}
+				},
+				"platformer_collider": {
+					"width": 1.0,
+					"height": 1.0,
+					"offset_x": 0.0,
+					"offset_y": 0.0,
+					"is_solid": true
+				}
+			}
+		}, {
+			"id":	6,
+			"components":	{
+				"local_transform":	{
+					"x":	5.0,
+					"y":	0.0,
+					"sx":	0.8,
+					"sy":	7.0
+				},
+				"sprite":	{
+					"texture":	"assets/images/file.png",
+					"rect":	{
+						"x":	0,
+						"y":	0,
+						"w":	1920,
+						"h":	1920
+					}
+				},
+				"platformer_collider": {
+					"width": 1.0,
+					"height": 1.0,
+					"offset_x": 0.0,
+					"offset_y": 0.0,
+					"is_solid": true
+				}
+			}
+		}, {
+			"id":	7,
+			"components":	{
+				"local_transform":	{
+					"x":	1.5,
+					"y":	0.5,
+					"sx":	3.5,
+					"sy":	0.4
+				},
+				"sprite":	{
+					"texture":	"assets/images/file.png",
+					"rect":	{
+						"x":	0,
+						"y":	0,
+						"w":	1920,
+						"h":	1920
+					}
+				},
+				"platformer_collider": {
+					"width": 1.0,
+					"height": 1.0,
+					"offset_x": 0.0,
+					"offset_y": 0.0,
+					"is_solid": true
+				}
+			}
+		}]
+}

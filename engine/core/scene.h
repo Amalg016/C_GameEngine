@@ -20,10 +20,10 @@
 //
 // Usage:
 //   // Save current scene:
-//   scene_save(engine, "scenes/my_scene.json");
+//   scene_save(engine, "assets/scenes/my_scene.json");
 //
 //   // Load a scene (replaces current state):
-//   scene_load(engine, "scenes/my_scene.json");
+//   scene_load(engine, "assets/scenes/my_scene.json");
 // ---------------------------------------------------------------------------
 
 // Forward declaration — avoids pulling in engine.h.

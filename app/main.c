@@ -330,14 +330,14 @@ int main(void) {
     // hierarchy_update_transforms(engine_get_world(engine), hctx);
 
     // Save the current scene to JSON (demonstrates the serializer).
-    // engine_save_scene(engine, "scenes/demo_saved.json");
+    // engine_save_scene(engine, "assets/scenes/demo_saved.json");
 
     // --- Path B: Load scene directly from JSON (uncomment to use) ----------
     // To use JSON scenes instead of Lua, comment out Path A above and
     // uncomment the following:
     //
     HierarchyContext *hctx = engine_get_hctx(engine);
-    if (!engine_load_scene(engine, "scenes/demo.json")) {
+    if (!engine_load_scene(engine, "assets/scenes/demo.json")) {
         fprintf(stderr, "failed to load scene\n");
         engine_destroy(engine);
         return EXIT_FAILURE;

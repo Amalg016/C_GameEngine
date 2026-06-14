@@ -275,6 +275,8 @@ static bool render_entry(const char *name, const char *full_path,
         char label[PathMaxLen];
         if (is_controller_meta_file(name)) {
             snprintf(label, PathMaxLen, "    \xf0\x9f\x8e\xae %s", name);
+        } else if (has_suffix(name, ".json")) {
+            snprintf(label, PathMaxLen, "    \xf0\x9f\x8e\xac %s", name);
         } else {
             snprintf(label, PathMaxLen, "    %s", name);
         }

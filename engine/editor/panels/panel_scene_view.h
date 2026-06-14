@@ -14,13 +14,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+typedef struct Engine Engine;
 typedef struct Renderer Renderer;
 
 /// Render the scene view panel (always-on editor viewport).
 /// `p_open`   — visibility flag.
+/// `engine`   — the active engine.
 /// `renderer` — the active renderer.
 /// `fb_w`, `fb_h` — current framebuffer dimensions (for display).
-void panel_scene_view_render(bool *p_open, Renderer *renderer, uint32_t fb_w, uint32_t fb_h);
+bool panel_scene_view_render(bool *p_open, Engine *engine, Renderer *renderer, uint32_t fb_w, uint32_t fb_h);
 
 /// Returns true if the scene view panel is currently focused.
 bool panel_scene_view_is_focused(void);

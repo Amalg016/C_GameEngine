@@ -7,6 +7,16 @@
 #include "cimgui.h"
 
 #include <stdio.h>
+#include <string.h>
+#include "../../core/engine.h"
+
+/// Returns true if `name` ends with `suffix`.
+static bool has_suffix(const char *name, const char *suffix) {
+    size_t name_len   = strlen(name);
+    size_t suffix_len = strlen(suffix);
+    if (name_len < suffix_len) return false;
+    return strcmp(name + name_len - suffix_len, suffix) == 0;
+}
 
 static bool s_focused = false;
 static bool s_hovered = false;
@@ -34,7 +44,8 @@ void panel_scene_view_get_content_bounds(float *min_x, float *min_y, float *max_
 // panel_scene_view_render
 // ---------------------------------------------------------------------------
 
-void panel_scene_view_render(bool *p_open, Renderer *renderer, uint32_t fb_w, uint32_t fb_h) {
+bool panel_scene_view_render(bool *p_open, Engine *engine, Renderer *renderer, uint32_t fb_w, uint32_t fb_h) {
+    bool scene_switched = false;
     igPushStyleVar_Vec2(ImGuiStyleVar_WindowPadding, (ImVec2){ 0, 0 });
 
     if (!igBegin("Scene View", p_open, ImGuiWindowFlags_NoScrollbar |
@@ -43,7 +54,7 @@ void panel_scene_view_render(bool *p_open, Renderer *renderer, uint32_t fb_w, ui
         s_hovered = false;
         igEnd();
         igPopStyleVar(1);
-        return;
+        return false;
     }
 
     igPopStyleVar(1);
@@ -137,7 +148,25 @@ void panel_scene_view_render(bool *p_open, Renderer *renderer, uint32_t fb_w, ui
                                 label, nullptr);
     }
 
+    // ---- Drop target: accept scene (.json) payload ------------------------
+    if (igBeginDragDropTarget()) {
+        const ImGuiPayload *ap = igAcceptDragDropPayload("ASSET_PATH", 0);
+        if (ap != nullptr) {
+            const char *path = (const char *)ap->Data;
+            if (path != nullptr && has_suffix(path, ".json")) {
+                if (engine_switch_scene(engine, path)) {
+                    printf("[editor] Loaded dropped scene: %s\n", path);
+                    scene_switched = true;
+                } else {
+                    fprintf(stderr, "[editor] Failed to load dropped scene: %s\n", path);
+                }
+            }
+        }
+        igEndDragDropTarget();
+    }
+
     igEnd();
+    return scene_switched;
 }
 
 #endif // EDITOR_BUILD

@@ -576,21 +576,21 @@ void engine_set_play_state(Engine *engine, PlayState state) {
 
     if (old_state == PLAY_STATE_EDITING && state == PLAY_STATE_PLAYING) {
         printf("[engine] entering play mode; saving scene state to temp file...\n");
-        scene_save(engine, "scenes/.play_temp.json");
+        scene_save(engine, "assets/scenes/.play_temp.json");
     } else if (state == PLAY_STATE_EDITING && (old_state == PLAY_STATE_PLAYING || old_state == PLAY_STATE_PAUSED)) {
         printf("[engine] exiting play mode; restoring scene state from temp file...\n");
 
         char *orig_scene = engine->current_scene ? strdup(engine->current_scene) : nullptr;
 
         scene_unload(engine);
-        if (scene_load(engine, "scenes/.play_temp.json")) {
+        if (scene_load(engine, "assets/scenes/.play_temp.json")) {
             free(engine->current_scene);
             engine->current_scene = orig_scene;
         } else {
             free(orig_scene);
         }
 
-        remove("scenes/.play_temp.json");
+        remove("assets/scenes/.play_temp.json");
     }
 
     engine->play_state = state;

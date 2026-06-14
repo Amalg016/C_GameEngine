@@ -519,9 +519,10 @@ bool engine_load_scene(Engine *engine, const char *filepath) {
         return false;
     }
 
-    // Track the currently loaded scene.
+    // Track the currently loaded scene safely (prevent UAF if filepath == current_scene)
+    char *new_scene = strdup(filepath);
     free(engine->current_scene);
-    engine->current_scene = strdup(filepath);
+    engine->current_scene = new_scene;
 
     // Sync scene manager index.
     int32_t idx = scene_manager_find_scene(engine->scene_manager, filepath);
@@ -573,9 +574,10 @@ bool engine_switch_scene(Engine *engine, const char *filepath) {
         return false;
     }
 
-    // Track the new scene.
+    // Track the new scene safely (prevent UAF if filepath == current_scene)
+    char *new_scene = strdup(filepath);
     free(engine->current_scene);
-    engine->current_scene = strdup(filepath);
+    engine->current_scene = new_scene;
 
     // Sync scene manager index.
     int32_t s_idx = scene_manager_find_scene(engine->scene_manager, filepath);

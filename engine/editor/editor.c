@@ -669,9 +669,12 @@ void editor_end_frame(Editor *editor) {
 void editor_save_meta(Editor *editor, const char *scene_path) {
     if (editor == nullptr || scene_path == nullptr) return;
 
-    // Update cached value.
+    // Duplicate first to prevent Use-After-Free if scene_path points to editor->last_scene
+    char *new_scene = strdup(scene_path);
+    if (new_scene == nullptr) return;
+
     free(editor->last_scene);
-    editor->last_scene = strdup(scene_path);
+    editor->last_scene = new_scene;
 
     // Save to .editor_meta.json
     cJSON *root = cJSON_CreateObject();

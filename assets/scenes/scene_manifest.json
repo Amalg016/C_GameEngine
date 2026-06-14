@@ -1,5 +1,3 @@
 {
-    "scenes": [
-        "assets/scenes/demo.json"
-    ]
+	"scenes":	["assets/scenes/demo.json", "assets/scenes/demo_saved.json"]
 }

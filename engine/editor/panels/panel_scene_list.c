@@ -163,6 +163,17 @@ void panel_scene_list_render(bool *p_open, Engine *engine) {
     static char add_buf[256] = {};
     igSetNextItemWidth(250.0f);
     igInputText("##add_scene_path", add_buf, sizeof(add_buf), 0, nullptr, nullptr);
+    if (igBeginDragDropTarget()) {
+        const ImGuiPayload *payload = igAcceptDragDropPayload("ASSET_PATH", 0);
+        if (payload != nullptr && payload->Data != nullptr) {
+            const char *path = (const char *)payload->Data;
+            if (strstr(path, ".json") != nullptr) {
+                strncpy(add_buf, path, sizeof(add_buf) - 1);
+                add_buf[sizeof(add_buf) - 1] = '\0';
+            }
+        }
+        igEndDragDropTarget();
+    }
     igSameLine(0, 4);
     if (igButton("Add Path", (ImVec2){0, 0})) {
         if (strlen(add_buf) > 0) {

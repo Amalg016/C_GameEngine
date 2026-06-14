@@ -5,6 +5,7 @@
 #include "clock.h"
 #include "ecs/ecs.h"
 #include "scene.h"
+#include "scene_manager.h"
 #include "scripting/lua_host.h"
 #include "anim_cache.h"
 #include "platformer_controller.h"
@@ -53,6 +54,7 @@ struct Engine {
     World            *world;
     LuaHost          *lua_host;       // created lazily on first script load
     AnimCache        *anim_cache;     // shared animation data cache
+    SceneManager     *scene_manager;  // ordered scene list + navigation
     HierarchyContext  hctx;           // stored here so LuaHost can reference
     CameraContext     cam_ctx;        // stored here so LuaHost can reference
     Input             input;          // per-frame keyboard + mouse state
@@ -141,6 +143,19 @@ Engine *engine_create(const EngineConfig *config) {
     engine->anim_cache = anim_cache_create();
     if (engine->anim_cache == nullptr) {
         fprintf(stderr, "[engine] animation cache creation failed\n");
+        world_destroy(engine->world);
+        asset_manager_destroy(engine->asset_manager);
+        renderer_destroy(&engine->renderer);
+        platform_destroy(engine->platform);
+        free(engine);
+        return nullptr;
+    }
+
+    // --- Scene manager ------------------------------------------------------
+    engine->scene_manager = scene_manager_create();
+    if (engine->scene_manager == nullptr) {
+        fprintf(stderr, "[engine] scene manager creation failed\n");
+        anim_cache_destroy(engine->anim_cache, engine->asset_manager);
         world_destroy(engine->world);
         asset_manager_destroy(engine->asset_manager);
         renderer_destroy(&engine->renderer);
@@ -356,6 +371,12 @@ void engine_destroy(Engine *engine) {
         engine->anim_cache = nullptr;
     }
 
+    // 2c. Scene manager.
+    if (engine->scene_manager != nullptr) {
+        scene_manager_destroy(engine->scene_manager);
+        engine->scene_manager = nullptr;
+    }
+
     // 3. Scene name.
     free(engine->current_scene);
     engine->current_scene = nullptr;
@@ -447,6 +468,7 @@ bool engine_load_script(Engine *engine, const char *path) {
         CameraContext *cam_ctx = engine_get_cam_ctx(engine);
 
         engine->lua_host = lua_host_create(
+            engine,
             engine->world, hctx, cam_ctx,
             engine->asset_manager, &engine->renderer,
             &engine->input);
@@ -478,6 +500,7 @@ bool engine_load_scene(Engine *engine, const char *filepath) {
     // types on it and the app-level systems can find them.
     if (engine->lua_host == nullptr) {
         engine->lua_host = lua_host_create(
+            engine,
             engine->world, &engine->hctx, &engine->cam_ctx,
             engine->asset_manager, &engine->renderer,
             &engine->input);
@@ -499,6 +522,18 @@ bool engine_load_scene(Engine *engine, const char *filepath) {
     // Track the currently loaded scene.
     free(engine->current_scene);
     engine->current_scene = strdup(filepath);
+
+    // Sync scene manager index.
+    int32_t idx = scene_manager_find_scene(engine->scene_manager, filepath);
+    if (idx >= 0) {
+        scene_manager_set_current_index(engine->scene_manager, idx);
+    }
+
+#ifdef EDITOR_BUILD
+    if (engine->editor != nullptr) {
+        editor_save_meta(engine->editor, filepath);
+    }
+#endif
 
     return true;
 }
@@ -525,6 +560,7 @@ bool engine_switch_scene(Engine *engine, const char *filepath) {
 
     if (engine->lua_host == nullptr) {
         engine->lua_host = lua_host_create(
+            engine,
             engine->world, &engine->hctx, &engine->cam_ctx,
             engine->asset_manager, &engine->renderer,
             &engine->input);
@@ -541,11 +577,88 @@ bool engine_switch_scene(Engine *engine, const char *filepath) {
     free(engine->current_scene);
     engine->current_scene = strdup(filepath);
 
+    // Sync scene manager index.
+    int32_t s_idx = scene_manager_find_scene(engine->scene_manager, filepath);
+    if (s_idx >= 0) {
+        scene_manager_set_current_index(engine->scene_manager, s_idx);
+    }
+
+#ifdef EDITOR_BUILD
+    if (engine->editor != nullptr) {
+        editor_save_meta(engine->editor, filepath);
+    }
+#endif
+
     return true;
 }
 
 const char *engine_get_current_scene(const Engine *engine) {
     return engine != nullptr ? engine->current_scene : nullptr;
+}
+
+// ---------------------------------------------------------------------------
+// Scene Manager navigation
+// ---------------------------------------------------------------------------
+
+SceneManager *engine_get_scene_manager(Engine *engine) {
+    return engine != nullptr ? engine->scene_manager : nullptr;
+}
+
+bool engine_load_scene_manifest(Engine *engine, const char *manifest_path) {
+    if (engine == nullptr || manifest_path == nullptr) return false;
+    return scene_manager_load_manifest(engine->scene_manager, manifest_path);
+}
+
+bool engine_next_scene(Engine *engine) {
+    if (engine == nullptr) return false;
+
+    int32_t cur = scene_manager_get_current_index(engine->scene_manager);
+    uint32_t count = scene_manager_get_count(engine->scene_manager);
+
+    int32_t next = cur + 1;
+    if (next < 0 || (uint32_t)next >= count) return false;
+
+    const char *path = scene_manager_get_scene_path(engine->scene_manager,
+                                                     (uint32_t)next);
+    if (path == nullptr) return false;
+
+    return engine_switch_scene(engine, path);
+}
+
+bool engine_previous_scene(Engine *engine) {
+    if (engine == nullptr) return false;
+
+    int32_t cur = scene_manager_get_current_index(engine->scene_manager);
+    int32_t prev = cur - 1;
+    if (prev < 0) return false;
+
+    const char *path = scene_manager_get_scene_path(engine->scene_manager,
+                                                     (uint32_t)prev);
+    if (path == nullptr) return false;
+
+    return engine_switch_scene(engine, path);
+}
+
+bool engine_goto_scene(Engine *engine, uint32_t index) {
+    if (engine == nullptr) return false;
+
+    const char *path = scene_manager_get_scene_path(engine->scene_manager,
+                                                     index);
+    if (path == nullptr) return false;
+
+    return engine_switch_scene(engine, path);
+}
+
+uint32_t engine_get_scene_count(const Engine *engine) {
+    return engine != nullptr
+        ? scene_manager_get_count(engine->scene_manager)
+        : 0;
+}
+
+int32_t engine_get_scene_index(const Engine *engine) {
+    return engine != nullptr
+        ? scene_manager_get_current_index(engine->scene_manager)
+        : -1;
 }
 
 // ---------------------------------------------------------------------------

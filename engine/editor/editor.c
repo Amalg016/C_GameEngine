@@ -10,6 +10,8 @@
 #include "../renderer/vulkan/vulkan_renderer.h"
 #include "../core/ecs/ecs.h"
 #include "../core/input.h"
+#include "../core/scene_manager.h"
+#include <string.h>
 
 #include "ui/imgui_layer.h"
 #include "ui/imgui_vulkan_bridge.h"
@@ -28,6 +30,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <cJSON.h>
 
 // ---------------------------------------------------------------------------
 // Editor internals
@@ -51,6 +54,9 @@ struct Editor {
     // Shared selection state (hierarchy ↔ inspector).
     uint32_t selected_entity;
     bool     has_selection;
+
+    // Persisted scene tracking
+    char    *last_scene;
 };
 
 // ---------------------------------------------------------------------------
@@ -104,7 +110,33 @@ Editor *editor_create(Engine *engine) {
         .show_demo_window      = false,
         .selected_entity       = 0,
         .has_selection         = false,
+        .last_scene            = nullptr,
     };
+
+    // Load last scene from meta file (.editor_meta.json)
+    FILE *mf = fopen(".editor_meta.json", "rb");
+    if (mf != nullptr) {
+        fseek(mf, 0, SEEK_END);
+        long msize = ftell(mf);
+        fseek(mf, 0, SEEK_SET);
+        if (msize > 0) {
+            char *mbuf = malloc((size_t)msize + 1);
+            if (mbuf != nullptr) {
+                size_t mread = fread(mbuf, 1, (size_t)msize, mf);
+                mbuf[mread] = '\0';
+                cJSON *mroot = cJSON_Parse(mbuf);
+                if (mroot != nullptr) {
+                    cJSON *last_scene_item = cJSON_GetObjectItemCaseSensitive(mroot, "last_scene");
+                    if (cJSON_IsString(last_scene_item) && last_scene_item->valuestring != nullptr) {
+                        editor->last_scene = strdup(last_scene_item->valuestring);
+                    }
+                    cJSON_Delete(mroot);
+                }
+                free(mbuf);
+            }
+        }
+        fclose(mf);
+    }
 
     console_log("[editor] Editor created successfully");
     printf("[editor] created\n");
@@ -133,6 +165,7 @@ void editor_destroy(Editor *editor) {
     panel_controller_editor_shutdown(r);
 
     imgui_layer_shutdown();
+    free(editor->last_scene);
     free(editor);
 
     printf("[editor] destroyed\n");
@@ -219,13 +252,46 @@ static void editor_render_dockspace(Editor *editor) {
             igEndMenu();
         }
 
+        if (igBeginMenu("Scenes", true)) {
+            SceneManager *sm = engine_get_scene_manager(editor->engine);
+            uint32_t count = scene_manager_get_count(sm);
+            int32_t current_idx = scene_manager_get_current_index(sm);
+
+            for (uint32_t i = 0; i < count; ++i) {
+                const char *path = scene_manager_get_scene_path(sm, i);
+                if (path != nullptr) {
+                    const char *filename = strrchr(path, '/');
+                    filename = (filename != nullptr) ? filename + 1 : path;
+
+                    char label[128];
+                    snprintf(label, sizeof(label), "%d: %s", i + 1, filename);
+
+                    bool is_selected = ((int32_t)i == current_idx);
+                    if (igMenuItem_Bool(label, nullptr, is_selected, true)) {
+                        engine_switch_scene(editor->engine, path);
+                        console_log("[editor] Switched to scene: %s", path);
+                    }
+                }
+            }
+
+            if (count == 0) {
+                igMenuItem_Bool("No scenes in manifest", nullptr, false, false);
+            }
+
+            igEndMenu();
+        }
+
         // ---- Toolbar buttons centered in the main menu bar ----------------
         {
             PlayState state = engine_get_play_state(editor->engine);
+            SceneManager *sm = engine_get_scene_manager(editor->engine);
+            int32_t current_idx = scene_manager_get_current_index(sm);
+            uint32_t scene_count = scene_manager_get_count(sm);
+
             constexpr float BtnSizeX = 24.0f;
             constexpr float BtnSizeY = 17.0f;
             constexpr float BtnGap   = 4.0f;
-            float total_w = BtnSizeX * 3.0f + BtnGap * 2.0f;
+            float total_w = BtnSizeX * 5.0f + BtnGap * 4.0f;
             float win_w = igGetWindowWidth();
             float offset = (win_w - total_w) * 0.5f;
 
@@ -233,6 +299,31 @@ static void editor_render_dockspace(Editor *editor) {
             if (offset > prev_cursor_x) {
                 igSetCursorPosX(offset);
             }
+
+            // Prev Scene button (|<)
+            {
+                bool enabled = (current_idx > 0);
+                if (enabled) {
+                    igPushStyleColor_Vec4(ImGuiCol_Button,        (ImVec4){0.2f, 0.4f, 0.7f, 1.0f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonHovered,  (ImVec4){0.3f, 0.5f, 0.8f, 1.0f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonActive,   (ImVec4){0.15f, 0.3f, 0.6f, 1.0f});
+                } else {
+                    igPushStyleColor_Vec4(ImGuiCol_Button,        (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonHovered,  (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonActive,   (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
+                }
+
+                if (igButton("|<", (ImVec2){BtnSizeX, BtnSizeY}) && enabled) {
+                    engine_previous_scene(editor->engine);
+                }
+                if (igIsItemHovered(0)) {
+                    igSetTooltip(enabled ? "Previous Scene" : "No previous scene");
+                }
+                igPopStyleColor(enabled ? 3 : 4);
+            }
+
+            igSameLine(0, BtnGap);
 
             // Play button (▶)
             {
@@ -311,6 +402,31 @@ static void editor_render_dockspace(Editor *editor) {
                     igSetTooltip(can_stop ? "Stop (Ctrl+R)" : "Not playing");
                 }
                 igPopStyleColor(can_stop ? 3 : 4);
+            }
+
+            igSameLine(0, BtnGap);
+
+            // Next Scene button (>|)
+            {
+                bool enabled = (current_idx >= 0 && (uint32_t)current_idx < scene_count - 1);
+                if (enabled) {
+                    igPushStyleColor_Vec4(ImGuiCol_Button,        (ImVec4){0.2f, 0.4f, 0.7f, 1.0f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonHovered,  (ImVec4){0.3f, 0.5f, 0.8f, 1.0f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonActive,   (ImVec4){0.15f, 0.3f, 0.6f, 1.0f});
+                } else {
+                    igPushStyleColor_Vec4(ImGuiCol_Button,        (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonHovered,  (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_ButtonActive,   (ImVec4){0.3f, 0.3f, 0.3f, 0.3f});
+                    igPushStyleColor_Vec4(ImGuiCol_Text,           (ImVec4){0.5f, 0.5f, 0.5f, 1.0f});
+                }
+
+                if (igButton(">|", (ImVec2){BtnSizeX, BtnSizeY}) && enabled) {
+                    engine_next_scene(editor->engine);
+                }
+                if (igIsItemHovered(0)) {
+                    igSetTooltip(enabled ? "Next Scene" : "No next scene");
+                }
+                igPopStyleColor(enabled ? 3 : 4);
             }
 
             igSetCursorPosX(prev_cursor_x);
@@ -539,6 +655,36 @@ void editor_end_frame(Editor *editor) {
     VkCommandBuffer cmd = vulkan_renderer_get_current_command_buffer(r);
 
     imgui_layer_end_frame(cmd);
+}
+
+void editor_save_meta(Editor *editor, const char *scene_path) {
+    if (editor == nullptr || scene_path == nullptr) return;
+
+    // Update cached value.
+    free(editor->last_scene);
+    editor->last_scene = strdup(scene_path);
+
+    // Save to .editor_meta.json
+    cJSON *root = cJSON_CreateObject();
+    if (root == nullptr) return;
+
+    cJSON_AddStringToObject(root, "last_scene", scene_path);
+    char *rendered = cJSON_Print(root);
+    cJSON_Delete(root);
+
+    if (rendered == nullptr) return;
+
+    FILE *f = fopen(".editor_meta.json", "w");
+    if (f != nullptr) {
+        fputs(rendered, f);
+        fclose(f);
+    }
+    free(rendered);
+}
+
+const char *editor_get_last_scene(const Editor *editor) {
+    if (editor == nullptr) return nullptr;
+    return editor->last_scene;
 }
 
 #endif // EDITOR_BUILD

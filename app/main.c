@@ -7,6 +7,11 @@
 #include "../engine/core/input.h"
 #include "../engine/core/scripting/lua_host.h"
 #include "../engine/core/platformer_controller.h"
+#include "../engine/core/scene_manager.h"
+
+#ifdef EDITOR_BUILD
+#include "../engine/editor/editor.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -336,9 +341,34 @@ int main(void) {
     // To use JSON scenes instead of Lua, comment out Path A above and
     // uncomment the following:
     //
+    // --- Path B: Load scene from manifest / editor metadata ----------------
+    //
+    // Load scene manifest
+    if (!engine_load_scene_manifest(engine, "assets/scenes/scene_manifest.json")) {
+        fprintf(stderr, "[main] warning: failed to load scene manifest assets/scenes/scene_manifest.json\n");
+    }
+
+    const char *scene_to_load = nullptr;
+#ifdef EDITOR_BUILD
+    Editor *editor = engine_get_editor(engine);
+    if (editor != nullptr) {
+        scene_to_load = editor_get_last_scene(editor);
+    }
+#endif
+
+    if (scene_to_load == nullptr) {
+        if (engine_get_scene_count(engine) > 0) {
+            scene_to_load = scene_manager_get_scene_path(engine_get_scene_manager(engine), 0);
+        } else {
+            scene_to_load = "assets/scenes/demo.json";
+        }
+    }
+
+    printf("[main] loading initial scene: %s\n", scene_to_load);
+
     HierarchyContext *hctx = engine_get_hctx(engine);
-    if (!engine_load_scene(engine, "assets/scenes/demo.json")) {
-        fprintf(stderr, "failed to load scene\n");
+    if (!engine_load_scene(engine, scene_to_load)) {
+        fprintf(stderr, "failed to load scene: %s\n", scene_to_load);
         engine_destroy(engine);
         return EXIT_FAILURE;
     }

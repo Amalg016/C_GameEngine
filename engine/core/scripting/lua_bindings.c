@@ -1,5 +1,6 @@
 #include "lua_bindings.h"
 #include "lua_host.h"
+#include "../engine.h"
 
 #include "../ecs/ecs.h"
 #include "../asset_manager.h"
@@ -25,6 +26,7 @@
 // accessors here as extern and implement them in lua_host.c.
 
 extern World            *lua_host_get_world(LuaHost *host);
+extern Engine           *lua_host_get_engine(LuaHost *host);
 extern HierarchyContext *lua_host_get_hctx(LuaHost *host);
 extern CameraContext    *lua_host_get_cam_ctx(LuaHost *host);
 extern AssetManager     *lua_host_get_asset_manager(LuaHost *host);
@@ -615,6 +617,69 @@ static int l_animator_play(lua_State *L) {
 }
 
 // ---------------------------------------------------------------------------
+// engine.next_scene() -> boolean
+// ---------------------------------------------------------------------------
+static int l_next_scene(lua_State *L) {
+    LuaHost *host = get_host(L);
+    Engine *engine = lua_host_get_engine(host);
+    bool success = engine_next_scene(engine);
+    lua_pushboolean(L, success);
+    return 1;
+}
+
+// ---------------------------------------------------------------------------
+// engine.previous_scene() -> boolean
+// ---------------------------------------------------------------------------
+static int l_previous_scene(lua_State *L) {
+    LuaHost *host = get_host(L);
+    Engine *engine = lua_host_get_engine(host);
+    bool success = engine_previous_scene(engine);
+    lua_pushboolean(L, success);
+    return 1;
+}
+
+// ---------------------------------------------------------------------------
+// engine.goto_scene(index_1based) -> boolean
+// ---------------------------------------------------------------------------
+static int l_goto_scene(lua_State *L) {
+    LuaHost *host = get_host(L);
+    Engine *engine = lua_host_get_engine(host);
+    lua_Integer lua_idx = luaL_checkinteger(L, 1);
+
+    // Convert 1-based Lua index to 0-based C index
+    if (lua_idx < 1) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    bool success = engine_goto_scene(engine, (uint32_t)(lua_idx - 1));
+    lua_pushboolean(L, success);
+    return 1;
+}
+
+// ---------------------------------------------------------------------------
+// engine.get_scene_count() -> integer
+// ---------------------------------------------------------------------------
+static int l_get_scene_count(lua_State *L) {
+    LuaHost *host = get_host(L);
+    Engine *engine = lua_host_get_engine(host);
+    uint32_t count = engine_get_scene_count(engine);
+    lua_pushinteger(L, (lua_Integer)count);
+    return 1;
+}
+
+// ---------------------------------------------------------------------------
+// engine.get_scene_index() -> integer (1-based, or 0 if none)
+// ---------------------------------------------------------------------------
+static int l_get_scene_index(lua_State *L) {
+    LuaHost *host = get_host(L);
+    Engine *engine = lua_host_get_engine(host);
+    int32_t idx = engine_get_scene_index(engine);
+    lua_pushinteger(L, idx >= 0 ? (lua_Integer)(idx + 1) : 0);
+    return 1;
+}
+
+// ---------------------------------------------------------------------------
 // Registration table
 // ---------------------------------------------------------------------------
 
@@ -649,6 +714,11 @@ static const luaL_Reg engine_funcs[] = {
     { "get_animator_int",       l_get_animator_int      },
     { "get_animator_bool",      l_get_animator_bool     },
     { "animator_play",          l_animator_play         },
+    { "next_scene",             l_next_scene            },
+    { "previous_scene",         l_previous_scene        },
+    { "goto_scene",             l_goto_scene            },
+    { "get_scene_count",        l_get_scene_count       },
+    { "get_scene_index",        l_get_scene_index       },
     { nullptr,                  nullptr                 },
 };
 

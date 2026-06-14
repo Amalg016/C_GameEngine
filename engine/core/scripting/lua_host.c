@@ -16,6 +16,7 @@
 
 struct LuaHost {
     lua_State        *L;
+    Engine           *engine;
     World            *world;
     HierarchyContext *hctx;
     CameraContext    *cam_ctx;
@@ -45,6 +46,7 @@ CameraContext    *lua_host_get_cam_ctx(LuaHost *h)         { return h->cam_ctx; 
 AssetManager     *lua_host_get_asset_manager(LuaHost *h)   { return h->am; }
 Renderer         *lua_host_get_renderer(LuaHost *h)        { return h->renderer; }
 Input            *lua_host_get_input(LuaHost *h)            { return h->input; }
+Engine           *lua_host_get_engine(LuaHost *h)           { return h->engine; }
 
 ComponentId lua_host_get_velocity_id(LuaHost *h)           { return h->c_velocity; }
 void        lua_host_set_velocity_id(LuaHost *h, ComponentId id) {
@@ -245,7 +247,8 @@ static void call_lua_double(lua_State *L, const char *fn_name, double arg) {
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-LuaHost *lua_host_create(World            *world,
+LuaHost *lua_host_create(Engine           *engine,
+                         World            *world,
                          HierarchyContext *hctx,
                          CameraContext    *cam_ctx,
                          AssetManager     *am,
@@ -262,6 +265,7 @@ LuaHost *lua_host_create(World            *world,
         return nullptr;
     }
 
+    host->engine   = engine;
     host->world    = world;
     host->hctx     = hctx;
     host->cam_ctx  = cam_ctx;

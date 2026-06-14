@@ -28,3 +28,5 @@ Thumbs.db
 engine_editor
 .antigravitycli/
 issues/
+.editor_meta.json
+assets/scenes/.play_temp.json

@@ -14,6 +14,7 @@
 
 // Forward declarations.
 typedef struct Input Input;
+typedef struct Engine Engine;
 
 // ---------------------------------------------------------------------------
 // LuaHost — owns the Lua VM and provides the bridge between C and Lua.
@@ -68,7 +69,8 @@ typedef struct ScriptComponent {
 
 /// Create a new LuaHost.  Opens the Lua VM and registers C bindings.
 /// Returns nullptr on failure.
-LuaHost *lua_host_create(World            *world,
+LuaHost *lua_host_create(Engine           *engine,
+                         World            *world,
                          HierarchyContext *hctx,
                          CameraContext    *cam_ctx,
                          AssetManager     *am,

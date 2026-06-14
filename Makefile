@@ -29,6 +29,7 @@ SRC_ENGINE := engine/renderer/renderer.c \
               engine/core/clock.c \
               engine/core/input.c \
               engine/core/scene.c \
+              engine/core/scene_manager.c \
               engine/core/sprite.c \
               engine/core/sprite_meta.c \
               engine/core/animation.c \

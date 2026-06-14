@@ -27,6 +27,7 @@ typedef struct HierarchyContext HierarchyContext;
 typedef struct CameraContext CameraContext;
 typedef struct LuaHost LuaHost;
 typedef struct AnimCache AnimCache;
+typedef struct SceneManager SceneManager;
 typedef uint32_t Entity;
 typedef uint8_t ComponentId;
 
@@ -156,6 +157,35 @@ bool engine_save_scene(Engine *engine, const char *filepath);
 /// Get the filepath of the currently loaded scene.
 /// Returns nullptr if no scene has been loaded.
 const char *engine_get_current_scene(const Engine *engine);
+
+// ---------------------------------------------------------------------------
+// Scene Manager — ordered scene navigation.
+// ---------------------------------------------------------------------------
+
+/// Access the engine's scene manager.
+SceneManager *engine_get_scene_manager(Engine *engine);
+
+/// Load the scene manifest (JSON list of scene paths in order).
+/// Must be called before using scene navigation APIs.
+bool engine_load_scene_manifest(Engine *engine, const char *manifest_path);
+
+/// Navigate to the next scene in the manifest order.
+/// Returns true on success, false if already at the last scene or no manifest.
+bool engine_next_scene(Engine *engine);
+
+/// Navigate to the previous scene in the manifest order.
+/// Returns true on success, false if already at the first scene or no manifest.
+bool engine_previous_scene(Engine *engine);
+
+/// Navigate to a specific scene by index (0-based).
+/// Returns true on success, false if index is out of range.
+bool engine_goto_scene(Engine *engine, uint32_t index);
+
+/// Get the total number of scenes in the manifest.
+uint32_t engine_get_scene_count(const Engine *engine);
+
+/// Get the index of the currently loaded scene (-1 if none).
+int32_t engine_get_scene_index(const Engine *engine);
 
 /// Get the current play state (EDITING / PLAYING / PAUSED).
 PlayState engine_get_play_state(const Engine *engine);

@@ -42,5 +42,12 @@ void editor_begin_frame(Editor *editor);
 /// Must be called while a render pass is active (before renderer_end_frame).
 void editor_end_frame(Editor *editor);
 
+/// Save the last active scene path to the editor metadata file.
+void editor_save_meta(Editor *editor, const char *scene_path);
+
+/// Get the last active scene path read from the editor metadata file.
+/// Returns nullptr if no metadata file was found or it couldn't be parsed.
+const char *editor_get_last_scene(const Editor *editor);
+
 #endif // EDITOR_BUILD
 #endif // ENGINE_EDITOR_H

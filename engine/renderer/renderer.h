@@ -69,6 +69,9 @@ typedef struct RendererAPI {
 
     /// Unregister a texture previously registered with register_imgui_texture.
     void  (*unregister_imgui_texture)(Renderer *self, void *imgui_tex_id);
+
+    /// Flush all queued debug draw commands.
+    void  (*flush_debug_draw)(Renderer *self);
 #endif
 } RendererAPI;
 
@@ -110,6 +113,7 @@ bool  renderer_get_texture_size(Renderer *r, void *gpu_data,
 #ifdef EDITOR_BUILD
 void *renderer_register_imgui_texture(Renderer *r, void *gpu_data);
 void  renderer_unregister_imgui_texture(Renderer *r, void *imgui_tex_id);
+void  renderer_flush_debug_draw(Renderer *r);
 #endif
 
 #endif // ENGINE_RENDERER_H

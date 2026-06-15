@@ -127,4 +127,11 @@ void renderer_unregister_imgui_texture(Renderer *r, void *imgui_tex_id) {
     }
 }
 
+void renderer_flush_debug_draw(Renderer *r) {
+    if (r != nullptr && r->api.flush_debug_draw != nullptr) {
+        r->api.flush_debug_draw(r);
+    }
+}
+
 #endif // EDITOR_BUILD
+

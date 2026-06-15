@@ -25,6 +25,7 @@ static void vulkan_update_descriptor_sets(VulkanContext *ctx,
 static void vulkan_offscreen_destroy(VulkanContext *ctx);
 static bool vulkan_offscreen_create(VulkanContext *ctx, uint32_t width, uint32_t height);
 #include "../../editor/ui/imgui_vulkan_bridge.h"
+#include "../../core/debug_draw.h"
 #endif
 
 // ---------------------------------------------------------------------------
@@ -611,7 +612,7 @@ static void vulkan_draw_quad(Renderer *self) {
         float    uv_offset[2];  // offset 96
         float    uv_scale[2];   // offset 104
         uint32_t entity_id;     // offset 112
-        float    _pad;          // offset 116
+        float    rotation;      // offset 116 (was _pad)
     } pc;
     memcpy(pc.vp, ctx->view_proj, sizeof(pc.vp));
     pc.scale[0] = 1.0f;  pc.scale[1] = 1.0f;
@@ -621,7 +622,7 @@ static void vulkan_draw_quad(Renderer *self) {
     pc.uv_offset[0] = 0.0f;  pc.uv_offset[1] = 0.0f;
     pc.uv_scale[0]  = 1.0f;  pc.uv_scale[1]  = 1.0f;
     pc.entity_id = 0;
-    pc._pad = 0.0f;
+    pc.rotation = 0.0f;
     vkCmdPushConstants(cmd, ctx->pipeline_layout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
 
@@ -664,7 +665,7 @@ static void vulkan_draw_sprite(Renderer *self,
         float    uv_offset[2];  // offset 96
         float    uv_scale[2];   // offset 104
         uint32_t entity_id;     // offset 112
-        float    _pad;          // offset 116
+        float    rotation;      // offset 116 (was _pad)
     } pc;
     memcpy(pc.vp, ctx->view_proj, sizeof(pc.vp));
     pc.scale[0] = w;  pc.scale[1] = h;
@@ -678,7 +679,7 @@ static void vulkan_draw_sprite(Renderer *self,
     pc.uv_offset[0] = uv_x;  pc.uv_offset[1] = uv_y;
     pc.uv_scale[0]  = uv_w;  pc.uv_scale[1]  = uv_h;
     pc.entity_id = entity_index;
-    pc._pad = 0.0f;
+    pc.rotation = 0.0f;
     vkCmdPushConstants(cmd, ctx->pipeline_layout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
 
@@ -835,6 +836,77 @@ static void vulkan_unregister_imgui_texture(Renderer *self, void *imgui_tex_id) 
     imgui_bridge_remove_texture(imgui_tex_id);
 }
 
+#include <math.h>
+
+static void vulkan_flush_debug_draw(Renderer *self) {
+    VulkanContext *ctx = (VulkanContext *)self->backend_data;
+    uint32_t frame = ctx->current_frame;
+    VkCommandBuffer cmd = ctx->command_buffers[frame];
+
+    uint32_t cmd_count = 0;
+    const DebugDrawCmd *cmds = debug_draw_get_commands(&cmd_count);
+    if (cmd_count == 0) return;
+
+    // Bind fallback (white) texture
+    vulkan_bind_texture(self, nullptr);
+
+    // Bind pipeline
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx->graphics_pipeline);
+
+    // Bind vertex and index buffers
+    VkBuffer vbufs[] = { ctx->vertex_buffer };
+    VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(cmd, 0, 1, vbufs, offsets);
+    vkCmdBindIndexBuffer(cmd, ctx->index_buffer, 0, VK_INDEX_TYPE_UINT16);
+
+    // Bind descriptor set (which now points to fallback texture)
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            ctx->pipeline_layout, 0, 1,
+                            &ctx->descriptor_sets[frame], 0, nullptr);
+
+    for (uint32_t i = 0; i < cmd_count; ++i) {
+        const DebugDrawCmd *cmd_data = &cmds[i];
+        if (cmd_data->type != DEBUG_DRAW_LINE) continue;
+
+        float dx = cmd_data->x2 - cmd_data->x1;
+        float dy = cmd_data->y2 - cmd_data->y1;
+        float len = sqrtf(dx * dx + dy * dy);
+        if (len < 1e-6f) continue;
+
+        float angle = atan2f(dy, dx);
+        float cx = (cmd_data->x1 + cmd_data->x2) * 0.5f;
+        float cy = (cmd_data->y1 + cmd_data->y2) * 0.5f;
+
+        // Push constants matching shader PushConstants block (total 120 bytes)
+        struct {
+            float    vp[16];        // offset 0
+            float    scale[2];      // offset 64
+            float    translate[2];  // offset 72
+            float    blend_color[4];// offset 80
+            float    uv_offset[2];  // offset 96
+            float    uv_scale[2];   // offset 104
+            uint32_t entity_id;     // offset 112
+            float    rotation;      // offset 116 (was _pad)
+        } pc;
+
+        memcpy(pc.vp, ctx->view_proj, sizeof(pc.vp));
+        pc.scale[0] = len;
+        pc.scale[1] = cmd_data->thickness;
+        pc.translate[0] = cx;
+        pc.translate[1] = cy;
+        memcpy(pc.blend_color, cmd_data->color, sizeof(pc.blend_color));
+        pc.uv_offset[0] = 0.0f; pc.uv_offset[1] = 0.0f;
+        pc.uv_scale[0] = 1.0f;  pc.uv_scale[1] = 1.0f;
+        pc.entity_id = 0;
+        pc.rotation = angle;
+
+        vkCmdPushConstants(cmd, ctx->pipeline_layout,
+                           VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+
+        vkCmdDrawIndexed(cmd, ctx->index_count, 1, 0, 0, 0);
+    }
+}
+
 #endif // EDITOR_BUILD
 
 // ---------------------------------------------------------------------------
@@ -866,6 +938,7 @@ Renderer vulkan_renderer_create(Platform *platform) {
 #ifdef EDITOR_BUILD
             .register_imgui_texture   = vulkan_register_imgui_texture,
             .unregister_imgui_texture = vulkan_unregister_imgui_texture,
+            .flush_debug_draw         = vulkan_flush_debug_draw,
 #endif
         },
         .backend_data = ctx,

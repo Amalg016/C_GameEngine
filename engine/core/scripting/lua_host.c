@@ -542,4 +542,26 @@ lua_State *lua_host_get_state(LuaHost *host) {
     return host != nullptr ? host->L : nullptr;
 }
 
+void lua_host_on_draw_gizmos(LuaHost *host) {
+    if (host == nullptr) return;
+    call_lua_void(host->L, "on_draw_gizmos");
+}
+
+void lua_host_scripts_draw_gizmos(LuaHost *host) {
+    if (host == nullptr || !host->script_registered) return;
+
+    ComponentPool *pool = world_get_pool(host->world, host->c_script);
+    if (pool == nullptr) return;
+
+    lua_State *L = host->L;
+
+    for (uint32_t i = 0; i < pool->count; ++i) {
+        ScriptComponent *sc = (ScriptComponent *)component_pool_get_dense(pool, i);
+        for (uint8_t s = 0; s < sc->count; ++s) {
+            if (sc->slots[s].instance_ref == LUA_NOREF) continue;
+            call_instance_void(L, sc->slots[s].instance_ref, "on_draw_gizmos");
+        }
+    }
+}
+
 #endif // EDITOR_BUILD

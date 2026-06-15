@@ -142,6 +142,12 @@ void lua_host_scripts_clear(LuaHost *host);
 /// table iteration and value reads in the inspector panel.
 lua_State *lua_host_get_state(LuaHost *host);
 
+/// Call Lua global `on_draw_gizmos()`.
+void lua_host_on_draw_gizmos(LuaHost *host);
+
+/// Call `:on_draw_gizmos(self)` on all script instances.
+void lua_host_scripts_draw_gizmos(LuaHost *host);
+
 #endif // EDITOR_BUILD
 
 #endif // ENGINE_CORE_SCRIPTING_LUA_HOST_H

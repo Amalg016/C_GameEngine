@@ -9,6 +9,10 @@
 #include "../input.h"
 #include "../../renderer/renderer.h"
 
+#ifdef EDITOR_BUILD
+#include "../debug_draw.h"
+#endif
+
 #include <lua5.4/lua.h>
 #include <lua5.4/lauxlib.h>
 
@@ -722,6 +726,77 @@ static const luaL_Reg engine_funcs[] = {
     { nullptr,                  nullptr                 },
 };
 
+static int l_gizmo_draw_line(lua_State *L) {
+#ifdef EDITOR_BUILD
+    float x1 = (float)luaL_checknumber(L, 1);
+    float y1 = (float)luaL_checknumber(L, 2);
+    float x2 = (float)luaL_checknumber(L, 3);
+    float y2 = (float)luaL_checknumber(L, 4);
+    float color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    if (lua_gettop(L) >= 8) {
+        color[0] = (float)luaL_checknumber(L, 5);
+        color[1] = (float)luaL_checknumber(L, 6);
+        color[2] = (float)luaL_checknumber(L, 7);
+        color[3] = (float)luaL_checknumber(L, 8);
+    } else if (lua_gettop(L) >= 7) {
+        color[0] = (float)luaL_checknumber(L, 5);
+        color[1] = (float)luaL_checknumber(L, 6);
+        color[2] = (float)luaL_checknumber(L, 7);
+    }
+    debug_draw_line(x1, y1, x2, y2, color, DebugDrawDefaultThickness);
+#else
+    (void)L;
+#endif
+    return 0;
+}
+
+static int l_gizmo_draw_rect(lua_State *L) {
+#ifdef EDITOR_BUILD
+    float cx = (float)luaL_checknumber(L, 1);
+    float cy = (float)luaL_checknumber(L, 2);
+    float w = (float)luaL_checknumber(L, 3);
+    float h = (float)luaL_checknumber(L, 4);
+    float color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    if (lua_gettop(L) >= 8) {
+        color[0] = (float)luaL_checknumber(L, 5);
+        color[1] = (float)luaL_checknumber(L, 6);
+        color[2] = (float)luaL_checknumber(L, 7);
+        color[3] = (float)luaL_checknumber(L, 8);
+    } else if (lua_gettop(L) >= 7) {
+        color[0] = (float)luaL_checknumber(L, 5);
+        color[1] = (float)luaL_checknumber(L, 6);
+        color[2] = (float)luaL_checknumber(L, 7);
+    }
+    debug_draw_rect(cx, cy, w, h, color, DebugDrawDefaultThickness);
+#else
+    (void)L;
+#endif
+    return 0;
+}
+
+static int l_gizmo_draw_circle(lua_State *L) {
+#ifdef EDITOR_BUILD
+    float cx = (float)luaL_checknumber(L, 1);
+    float cy = (float)luaL_checknumber(L, 2);
+    float radius = (float)luaL_checknumber(L, 3);
+    float color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    if (lua_gettop(L) >= 7) {
+        color[0] = (float)luaL_checknumber(L, 4);
+        color[1] = (float)luaL_checknumber(L, 5);
+        color[2] = (float)luaL_checknumber(L, 6);
+        color[3] = (float)luaL_checknumber(L, 7);
+    } else if (lua_gettop(L) >= 6) {
+        color[0] = (float)luaL_checknumber(L, 4);
+        color[1] = (float)luaL_checknumber(L, 5);
+        color[2] = (float)luaL_checknumber(L, 6);
+    }
+    debug_draw_circle(cx, cy, radius, color, DebugDrawDefaultThickness);
+#else
+    (void)L;
+#endif
+    return 0;
+}
+
 // ---------------------------------------------------------------------------
 // lua_register_engine_bindings — push the `engine` global table.
 // ---------------------------------------------------------------------------
@@ -776,6 +851,21 @@ void lua_register_engine_bindings(lua_State *L, LuaHost *host) {
     lua_pushinteger(L, 1); lua_setfield(L, -2, "RIGHT");
     lua_pushinteger(L, 2); lua_setfield(L, -2, "MIDDLE");
     lua_setfield(L, -2, "mouse");  // engine.mouse = {...}
+
+    // Gizmo drawing bindings as engine.gizmo.*
+    lua_newtable(L);
+    lua_pushlightuserdata(L, host);
+    lua_pushcclosure(L, l_gizmo_draw_line, 1);
+    lua_setfield(L, -2, "draw_line");
+
+    lua_pushlightuserdata(L, host);
+    lua_pushcclosure(L, l_gizmo_draw_rect, 1);
+    lua_setfield(L, -2, "draw_rect");
+
+    lua_pushlightuserdata(L, host);
+    lua_pushcclosure(L, l_gizmo_draw_circle, 1);
+    lua_setfield(L, -2, "draw_circle");
+    lua_setfield(L, -2, "gizmo");  // engine.gizmo = {...}
 
     lua_setglobal(L, "engine");
 }

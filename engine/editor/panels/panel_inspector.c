@@ -424,6 +424,9 @@ void panel_inspector_render(bool *p_open,
                 };
                 igDragFloat4("UV Rect", uv, 0.0f, 0.0f, 0.0f, "%.3f", 0);
                 igEndDisabled();
+
+                // Blend Color.
+                igColorEdit4("Blend Color", spr->sprite.color, 0);
             }
         }
     }

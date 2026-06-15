@@ -150,7 +150,8 @@ static void system_sprite_render(AppState *app, float alpha) {
         renderer_draw_sprite(app->renderer, render_x, render_y, wt->sx, wt->sy,
                              ent,
                              sc->sprite.uv_rect.x, sc->sprite.uv_rect.y,
-                             sc->sprite.uv_rect.w, sc->sprite.uv_rect.h);
+                             sc->sprite.uv_rect.w, sc->sprite.uv_rect.h,
+                             sc->sprite.color);
     }
 }
 

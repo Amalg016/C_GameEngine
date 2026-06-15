@@ -43,6 +43,7 @@ SRC_ENGINE := engine/renderer/renderer.c \
               engine/core/ecs/camera.c \
               engine/core/scripting/lua_host.c \
               engine/core/scripting/lua_bindings.c \
+              engine/core/debug_draw.c \
               engine/platform/platform.c
 
 SRC_VULKAN := engine/renderer/vulkan/vulkan_renderer.c \
@@ -72,7 +73,8 @@ SRC_EDITOR := engine/editor/editor.c \
               engine/editor/panels/panel_sprite_editor.c \
               engine/editor/panels/panel_animation_editor.c \
               engine/editor/panels/panel_controller_editor.c \
-              engine/editor/panels/panel_scene_list.c
+              engine/editor/panels/panel_scene_list.c \
+              engine/editor/gizmo_system.c
 
 # ImGui C++ sources from the cimgui submodule.
 SRC_IMGUI  := third_party/cimgui/cimgui.cpp \

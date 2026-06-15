@@ -835,6 +835,7 @@ void panel_inspector_render(bool *p_open,
                     col->offset_y = offset[1];
                 }
                 igCheckbox("Is Solid", &col->is_solid);
+                igCheckbox("Show Gizmo", &col->show_gizmo);
             }
         }
     }
@@ -1028,7 +1029,8 @@ void panel_inspector_render(bool *p_open,
                     .height = 1.0f,
                     .offset_x = 0.0f,
                     .offset_y = 0.0f,
-                    .is_solid = true
+                    .is_solid = true,
+                    .show_gizmo = true
                 };
                 world_add_component(world, ent, c_menu_plat_col, &col_val);
             }

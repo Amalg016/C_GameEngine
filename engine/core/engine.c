@@ -13,6 +13,8 @@
 #ifdef EDITOR_BUILD
 #include "../editor/editor.h"
 #include "../renderer/vulkan/vulkan_renderer.h"
+#include "debug_draw.h"
+#include "../editor/gizmo_system.h"
 #endif
 
 #include <stdio.h>
@@ -319,6 +321,18 @@ void engine_run(Engine *engine) {
                 // Fallback: keep existing behaviour when no callback is set.
                 renderer_draw_quad(&engine->renderer);
             }
+
+#ifdef EDITOR_BUILD
+            debug_draw_clear();
+            if (engine->hctx_inited) {
+                gizmo_system_draw_colliders(engine->world, &engine->hctx);
+            }
+            if (engine->lua_host != nullptr) {
+                lua_host_on_draw_gizmos(engine->lua_host);
+                lua_host_scripts_draw_gizmos(engine->lua_host);
+            }
+            renderer_flush_debug_draw(&engine->renderer);
+#endif
 
 #ifdef EDITOR_BUILD
             // Editor rendering: ImGui draw commands are recorded into the

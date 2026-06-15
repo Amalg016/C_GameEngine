@@ -742,6 +742,9 @@ bool scene_load(Engine *engine, const char *filepath) {
                 cJSON *sol_j = cJSON_GetObjectItemCaseSensitive(pcol_json, "is_solid");
                 pcol.is_solid = cJSON_IsBool(sol_j) ? cJSON_IsTrue(sol_j) : true;
 
+                cJSON *giz_j = cJSON_GetObjectItemCaseSensitive(pcol_json, "show_gizmo");
+                pcol.show_gizmo = cJSON_IsBool(giz_j) ? cJSON_IsTrue(giz_j) : true;
+
                 world_add_component(world, live, c_pcol, &pcol);
             }
         }
@@ -1064,6 +1067,7 @@ bool scene_save(Engine *engine, const char *filepath) {
                 cJSON_AddNumberToObject(col_obj, "offset_x", (double)col->offset_x);
                 cJSON_AddNumberToObject(col_obj, "offset_y", (double)col->offset_y);
                 cJSON_AddBoolToObject(col_obj, "is_solid", col->is_solid);
+                cJSON_AddBoolToObject(col_obj, "show_gizmo", col->show_gizmo);
             }
         }
 

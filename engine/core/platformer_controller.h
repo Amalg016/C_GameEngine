@@ -75,6 +75,7 @@ typedef struct PlatformerCollider {
     float offset_x;                 // Center offset relative to local transform
     float offset_y;                 // Center offset relative to local transform
     bool is_solid;                  // Blocks platformer controllers
+    bool show_gizmo;                // Show collider boundaries in the editor
 } PlatformerCollider;
 
 /// Registers PlatformerController and PlatformerCollider components.

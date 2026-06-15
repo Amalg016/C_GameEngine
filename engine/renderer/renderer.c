@@ -77,10 +77,11 @@ void renderer_set_view_projection(Renderer *r, const float *mat4x4) {
 
 void renderer_draw_sprite(Renderer *r, float x, float y, float w, float h,
                           uint32_t entity_index,
-                          float uv_x, float uv_y, float uv_w, float uv_h) {
+                          float uv_x, float uv_y, float uv_w, float uv_h,
+                          const float color[4]) {
     if (r != nullptr && r->api.draw_sprite != nullptr) {
         r->api.draw_sprite(r, x, y, w, h, entity_index,
-                           uv_x, uv_y, uv_w, uv_h);
+                           uv_x, uv_y, uv_w, uv_h, color);
     }
 }
 

@@ -602,24 +602,26 @@ static void vulkan_draw_quad(Renderer *self) {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx->graphics_pipeline);
 
-    // Push constants: mat4 view_proj + vec2 scale + vec2 translate + uint entity_id
-    //                 + float _pad + vec2 uv_offset + vec2 uv_scale.
+    // Push constants matching shader PushConstants block (total 120 bytes)
     struct {
-        float    vp[16];
-        float    scale[2];
-        float    translate[2];
-        uint32_t entity_id;
-        float    _pad;
-        float    uv_offset[2];
-        float    uv_scale[2];
+        float    vp[16];        // offset 0
+        float    scale[2];      // offset 64
+        float    translate[2];  // offset 72
+        float    blend_color[4];// offset 80
+        float    uv_offset[2];  // offset 96
+        float    uv_scale[2];   // offset 104
+        uint32_t entity_id;     // offset 112
+        float    _pad;          // offset 116
     } pc;
     memcpy(pc.vp, ctx->view_proj, sizeof(pc.vp));
     pc.scale[0] = 1.0f;  pc.scale[1] = 1.0f;
     pc.translate[0] = 0.0f;  pc.translate[1] = 0.0f;
-    pc.entity_id = 0;
-    pc._pad = 0.0f;
+    pc.blend_color[0] = 1.0f; pc.blend_color[1] = 1.0f;
+    pc.blend_color[2] = 1.0f; pc.blend_color[3] = 1.0f;
     pc.uv_offset[0] = 0.0f;  pc.uv_offset[1] = 0.0f;
     pc.uv_scale[0]  = 1.0f;  pc.uv_scale[1]  = 1.0f;
+    pc.entity_id = 0;
+    pc._pad = 0.0f;
     vkCmdPushConstants(cmd, ctx->pipeline_layout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
 
@@ -640,13 +642,12 @@ static void vulkan_draw_quad(Renderer *self) {
     vkCmdDrawIndexed(cmd, ctx->index_count, 1, 0, 0, 0);
 }
 
-/// Draw a textured sprite at (x, y) with size (w, h) in world space.
-/// UV rect (uv_x, uv_y, uv_w, uv_h) defines the sub-region of the texture.
 static void vulkan_draw_sprite(Renderer *self,
                                 float x, float y, float w, float h,
                                 uint32_t entity_index,
                                 float uv_x, float uv_y,
-                                float uv_w, float uv_h) {
+                                float uv_w, float uv_h,
+                                const float color[4]) {
     VulkanContext *ctx = (VulkanContext *)self->backend_data;
     uint32_t frame = ctx->current_frame;
     VkCommandBuffer cmd = ctx->command_buffers[frame];
@@ -654,24 +655,30 @@ static void vulkan_draw_sprite(Renderer *self,
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx->graphics_pipeline);
 
-    // Push constants: mat4 view_proj + vec2 scale + vec2 translate + uint entity_id
-    //                 + float _pad + vec2 uv_offset + vec2 uv_scale.
+    // Push constants matching shader PushConstants block (total 120 bytes)
     struct {
-        float    vp[16];
-        float    scale[2];
-        float    translate[2];
-        uint32_t entity_id;
-        float    _pad;
-        float    uv_offset[2];
-        float    uv_scale[2];
+        float    vp[16];        // offset 0
+        float    scale[2];      // offset 64
+        float    translate[2];  // offset 72
+        float    blend_color[4];// offset 80
+        float    uv_offset[2];  // offset 96
+        float    uv_scale[2];   // offset 104
+        uint32_t entity_id;     // offset 112
+        float    _pad;          // offset 116
     } pc;
     memcpy(pc.vp, ctx->view_proj, sizeof(pc.vp));
     pc.scale[0] = w;  pc.scale[1] = h;
     pc.translate[0] = x;  pc.translate[1] = y;
-    pc.entity_id = entity_index;
-    pc._pad = 0.0f;
+    if (color != nullptr) {
+        memcpy(pc.blend_color, color, sizeof(pc.blend_color));
+    } else {
+        pc.blend_color[0] = 1.0f; pc.blend_color[1] = 1.0f;
+        pc.blend_color[2] = 1.0f; pc.blend_color[3] = 1.0f;
+    }
     pc.uv_offset[0] = uv_x;  pc.uv_offset[1] = uv_y;
     pc.uv_scale[0]  = uv_w;  pc.uv_scale[1]  = uv_h;
+    pc.entity_id = entity_index;
+    pc._pad = 0.0f;
     vkCmdPushConstants(cmd, ctx->pipeline_layout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
 

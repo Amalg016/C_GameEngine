@@ -529,6 +529,13 @@ bool scene_load(Engine *engine, const char *filepath) {
                         sprite = sprite_from_texture(h, tw, th);
                     }
 
+                    cJSON *col_json = cJSON_GetObjectItemCaseSensitive(spr_json, "color");
+                    if (cJSON_IsArray(col_json) && cJSON_GetArraySize(col_json) == 4) {
+                        for (int ci = 0; ci < 4; ++ci) {
+                            sprite.color[ci] = (float)cJSON_GetNumberValue(cJSON_GetArrayItem(col_json, ci));
+                        }
+                    }
+
                     SceneSprite spr = { .sprite = sprite };
                     world_add_component(world, live, c_sprite, &spr);
                 }
@@ -928,6 +935,12 @@ bool scene_save(Engine *engine, const char *filepath) {
                     cJSON_AddNumberToObject(rect_obj, "y", (double)spr->sprite.rect.y);
                     cJSON_AddNumberToObject(rect_obj, "w", (double)spr->sprite.rect.w);
                     cJSON_AddNumberToObject(rect_obj, "h", (double)spr->sprite.rect.h);
+
+                    // Save the color as an array.
+                    cJSON *col_arr = cJSON_AddArrayToObject(spr_obj, "color");
+                    for (int ci = 0; ci < 4; ++ci) {
+                        cJSON_AddItemToArray(col_arr, cJSON_CreateNumber((double)spr->sprite.color[ci]));
+                    }
                 }
             }
         }

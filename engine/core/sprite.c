@@ -35,6 +35,7 @@ Sprite sprite_from_texture(AssetHandle texture,
         .uv_rect    = { .x = 0.0f, .y = 0.0f, .w = 1.0f, .h = 1.0f },
         .tex_width  = tex_w,
         .tex_height = tex_h,
+        .color      = { 1.0f, 1.0f, 1.0f, 1.0f },
     };
 }
 
@@ -48,6 +49,7 @@ Sprite sprite_from_sheet(AssetHandle texture,
         .uv_rect    = compute_uv_rect(pixel_rect, tex_w, tex_h),
         .tex_width  = tex_w,
         .tex_height = tex_h,
+        .color      = { 1.0f, 1.0f, 1.0f, 1.0f },
     };
 }
 
@@ -80,6 +82,7 @@ uint32_t sprite_slice_grid(AssetHandle texture,
                 .uv_rect    = compute_uv_rect(pixel_rect, tex_w, tex_h),
                 .tex_width  = tex_w,
                 .tex_height = tex_h,
+                .color      = { 1.0f, 1.0f, 1.0f, 1.0f },
             };
 
             ++count;

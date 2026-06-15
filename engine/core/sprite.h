@@ -24,6 +24,7 @@ typedef struct Sprite {
     Rect        uv_rect;     // normalised UV rect (computed from rect + texture size)
     uint32_t    tex_width;    // source texture width  in pixels
     uint32_t    tex_height;   // source texture height in pixels
+    float       color[4];     // RGBA color tint / blend
 } Sprite;
 
 /// Create a Sprite covering the full texture.
